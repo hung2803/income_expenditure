@@ -1,0 +1,77 @@
+name: Deploy preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-preview
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+  deploy:
+    needs: checks
+    environment: preview
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      PREVIEW_D1_DATABASE_ID: ${{ vars.PREVIEW_D1_DATABASE_ID }}
+      PREVIEW_WORKER_NAME: ${{ vars.PREVIEW_WORKER_NAME }}
+      PREVIEW_DATABASE_NAME: ${{ vars.PREVIEW_DATABASE_NAME }}
+      PREVIEW_ORIGIN: ${{ vars.PREVIEW_ORIGIN }}
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: tested-build
+          path: .
+      - name: Install the tested dependency versions
+        run: npm ci
+      - name: Install smoke browsers before changing cloud state
+        run: npx playwright install --with-deps chromium webkit
+      - name: Validate isolated preview target
+        run: npm run preview:prepare -w @thu-chi/backend
+      - name: Validate the combined Worker and tested static assets without deploying
+        run: npm run preview:build -w @thu-chi/backend
+      - name: Migrate, deploy tested assets and verify version
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npm run preview:deploy -w @thu-chi/backend
+      - name: Check public HTTPS login on Chromium and WebKit
+        id: smoke
+        run: npm run test:preview
+      - name: Restore previous version if browser smoke failed
+        id: recover
+        if: failure() && steps.deploy.outcome == 'success' && steps.smoke.outcome == 'failure'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node apps/backend/scripts/preview.mjs rollback-before
+      - name: Check restored UI
+        if: failure() && steps.recover.outcome == 'success'
+        run: npm run test:preview
+      - name: Store release versions and smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: preview-release-${{ github.run_id }}
+          include-hidden-files: true
+          path: |
+            .preview/*.json
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 30

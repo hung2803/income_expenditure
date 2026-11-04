@@ -1,0 +1,61 @@
+name: Rollback preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Complete version UUID from a previously verified preview release'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-preview
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    environment: preview
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      PREVIEW_D1_DATABASE_ID: ${{ vars.PREVIEW_D1_DATABASE_ID }}
+      PREVIEW_WORKER_NAME: ${{ vars.PREVIEW_WORKER_NAME }}
+      PREVIEW_DATABASE_NAME: ${{ vars.PREVIEW_DATABASE_NAME }}
+      PREVIEW_ORIGIN: ${{ vars.PREVIEW_ORIGIN }}
+      VERSION_ID: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Restore and verify the requested Worker version
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node apps/backend/scripts/preview.mjs rollback "$VERSION_ID"
+      - name: Install browser test tools
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npx playwright install --with-deps chromium webkit
+      - name: Check restored public UI and API
+        run: npm run test:preview
+      - name: Store rollback evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: preview-rollback-${{ github.run_id }}
+          include-hidden-files: true
+          path: |
+            .preview/*.json
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 30

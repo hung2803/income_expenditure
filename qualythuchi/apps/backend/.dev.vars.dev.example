@@ -1,0 +1,3 @@
+# Local dev secrets only. Copy to .dev.vars.dev if a later feature needs secrets.
+# No secrets are required by the P00 health API.
+# Do not copy production credentials here or commit the real .dev.vars.dev file.

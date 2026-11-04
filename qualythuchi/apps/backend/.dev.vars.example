@@ -1,0 +1,6 @@
+# P00 requires no application secrets. APP_ENV and CORS_ORIGINS are public vars
+# configured in wrangler.jsonc, separately for dev/test/prod.
+# Prefer .dev.vars.dev or .dev.vars.test; environment-specific files replace
+# the generic .dev.vars file. Do not commit real .dev.vars files.
+# Add actual secret bindings only when the corresponding feature is implemented.
+# Never put OAuth tokens, passwords or recovery keys in VITE_* variables.

@@ -1,0 +1,67 @@
+.budget-page-heading { display: flex; align-items: center; gap: 10px; margin: 5px 0 16px; }
+.budget-back { display: grid; width: 39px; height: 39px; flex: 0 0 auto; place-items: center; border: 1px solid #e8eef6; border-radius: 13px; color: #314663; background: #fff; box-shadow: 0 4px 14px #34547d08; }
+.budget-back svg { width: 21px; height: 21px; }
+.budget-page-heading > div { min-width: 0; flex: 1; }
+.budget-page-heading h1 { margin: 0; color: #111b36; font-size: clamp(21px, 5.2vw, 26px); font-weight: 760; letter-spacing: -.6px; line-height: 1.3; }
+.budget-page-heading p { margin: 4px 0 0; color: #7889a5; font-size: 11px; }
+.budget-add-button, .budget-add-inline { display: inline-flex; min-height: 39px; flex: 0 0 auto; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px; border: 0; border-radius: 12px; color: #fff; background: #237bff; font: inherit; font-size: 10px; font-weight: 650; }
+.budget-add-button svg, .budget-add-inline svg { width: 16px; height: 16px; }
+.budget-period-control { display: flex; align-items: center; justify-content: center; gap: 15px; margin: 10px 0 14px; padding: 6px; border: 1px solid #e7eef7; border-radius: 15px; background: #fff; }
+.budget-period-control button { display: grid; width: 34px; height: 34px; place-items: center; border: 0; border-radius: 10px; color: #237bff; background: #edf5ff; }
+.budget-period-control button svg { width: 18px; height: 18px; }
+.budget-period-control input { min-height: 34px; border: 0; color: #1a2b47; background: transparent; font: inherit; font-size: 13px; font-weight: 700; }
+.budget-overview-card { padding: 17px 15px 15px; border: 1px solid #fff; border-radius: 20px; background: linear-gradient(135deg, #edf6ff, #fff 82%); box-shadow: 0 6px 19px #3576ad0b; }
+.budget-overview-heading { display: flex; align-items: center; gap: 10px; }
+.budget-icon { display: grid; width: 39px; height: 39px; flex: 0 0 auto; place-items: center; border-radius: 13px; color: #237bff; background: #e4f0ff; }
+.budget-icon svg { width: 20px; height: 20px; }
+.budget-overview-heading > div { display: grid; flex: 1; gap: 3px; }
+.budget-overview-heading small, .budget-overview-numbers small { color: #7a8aa3; font-size: 10px; }
+.budget-overview-heading h2 { margin: 0; color: #17243a; font-size: 14px; font-weight: 730; }
+.budget-period-range { color: #8392a9; font-size: 10px; white-space: nowrap; }
+.budget-overview-numbers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin: 15px 0 13px; }
+.budget-overview-numbers > div { display: grid; min-width: 0; gap: 4px; padding: 10px 8px; border: 1px solid #fff; border-radius: 13px; background: #ffffffb8; }
+.budget-overview-numbers strong { overflow: hidden; color: #1a2b47; font-size: clamp(11px, 3.3vw, 15px); font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.budget-overview-numbers .budget-spent { color: #8163c7; }
+.budget-overview-numbers .budget-remaining { color: #11966a; }
+.budget-overview-numbers .budget-over { color: #e3475b; }
+.budget-progress-meta { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 7px; color: #647792; font-size: 10px; }
+.budget-progress-track { height: 9px; overflow: hidden; border-radius: 99px; background: #e5edf6; }
+.budget-progress-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #3988ff, #2d74f0); transition: width .25s ease; }
+.budget-progress-track.budget-progress-over i { background: linear-gradient(90deg, #ff9871, #ec5263); }
+.budget-related-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 13px; color: #237bff; font-size: 11px; font-weight: 650; text-decoration: none; }
+.budget-related-link svg { width: 16px; height: 16px; }
+.budget-category-section .account-section-title { align-items: flex-end; }
+.budget-category-section .account-section-title h2 { margin: 0; color: #17243a; font-size: 16px; }
+.budget-category-section .account-section-title p { margin: 3px 0 0; color: #8492a8; font-size: 10px; }
+.budget-add-inline { min-height: 32px; color: #237bff; background: #eaf4ff; }
+.budget-category-list { overflow: hidden; border: 1px solid #e6edf6; border-radius: 17px; background: #fff; box-shadow: 0 5px 17px #34547d08; }
+.budget-category-row, .budget-total-row { display: flex; min-width: 0; align-items: center; gap: 8px; padding: 11px 9px; }
+.budget-category-row + .budget-category-row { border-top: 1px solid #edf1f6; }
+.budget-category-row > .budget-icon, .budget-total-row > .budget-icon { width: 34px; height: 34px; border-radius: 11px; }
+.budget-row-copy { display: grid; min-width: 0; flex: 1; gap: 4px; }
+.budget-row-copy > strong { overflow: hidden; color: #1b2b47; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.budget-row-copy > small { overflow: hidden; color: #8291a8; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.budget-row-progress { height: 5px; margin-top: 2px; }
+.budget-row-amount { display: grid; min-width: 0; justify-items: end; gap: 4px; }
+.budget-row-amount > strong { overflow: hidden; color: #1c2c48; font-size: 9px; font-weight: 730; text-overflow: ellipsis; white-space: nowrap; }
+.budget-row-amount > strong span { color: #7788a2; font-weight: 500; }
+.budget-row-amount > small { color: #7587a0; font-size: 8px; white-space: nowrap; }
+.budget-row-amount > small.budget-over { color: #df4657; }
+.budget-row-action { display: grid; width: 28px; height: 29px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 9px; color: #6b84a3; background: #f0f5fb; }
+.budget-row-action svg { width: 14px; height: 14px; }
+.budget-total-row { margin-top: 9px; border: 1px solid #e6edf6; border-radius: 15px; background: #fff; }
+.budget-total-row .budget-row-copy { flex: 1; }
+.budget-empty { margin-top: 12px; }
+.budget-empty > svg { width: 28px; height: 28px; color: #237bff; }
+.budget-empty .account-primary-button { margin-top: 13px; }
+.budget-form-error { margin: 0; color: #bb3448; font-size: 11px; line-height: 1.5; }
+.budget-dialog .finance-form { padding-bottom: 2px; }
+.transaction-budget-filter { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0 12px; padding: 9px 11px; border: 1px solid #dceafe; border-radius: 12px; color: #587190; background: #f1f7ff; font-size: 10px; }
+.transaction-budget-filter button { flex: 0 0 auto; border: 0; color: #237bff; background: transparent; font: inherit; font-weight: 700; }
+@media (max-width: 420px) {
+  .budget-page-heading { gap: 7px; }
+  .budget-add-button { gap: 4px; padding-inline: 8px; font-size: 9px; }
+  .budget-category-row { gap: 6px; padding-inline: 7px; }
+  .budget-row-action { width: 25px; }
+  .budget-period-range { display: none; }
+}

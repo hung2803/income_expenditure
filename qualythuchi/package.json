@@ -1,0 +1,38 @@
+{
+  "name": "quan-ly-thu-chi",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n frontend,backend \"npm run dev -w @thu-chi/frontend\" \"npm run dev -w @thu-chi/backend\"",
+    "dev:frontend": "npm run dev -w @thu-chi/frontend",
+    "dev:backend": "npm run dev -w @thu-chi/backend",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc -p tsconfig.tests.json",
+    "lint": "eslint .",
+    "test": "vitest run --configLoader runner && npm run test:config -w @thu-chi/backend && npm run test:auth -w @thu-chi/backend && npm run test:finance -w @thu-chi/backend && npm run test:admin -w @thu-chi/backend && npm run test:budgets -w @thu-chi/backend && npm run test:notifications -w @thu-chi/backend && npm run test:p10 -w @thu-chi/backend",
+    "test:e2e": "npm run build -w @thu-chi/frontend && playwright test",
+    "test:preview": "playwright test --config playwright.preview.config.ts",
+    "db:migrate:local": "npm run db:migrate:local -w @thu-chi/backend",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.0.0",
+    "@eslint/js": "^9.0.0",
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^24.0.0",
+    "concurrently": "^9.0.0",
+    "eslint": "^9.0.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^3.2.0"
+  }
+}

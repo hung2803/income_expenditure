@@ -1,0 +1,63 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "thu-chi-api",
+  "main": "src/index.ts",
+  "account_id": "95d83bda26016885287bc94489b3de9d",
+  "compatibility_date": "2026-10-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "vars": { "APP_ENV": "dev", "CORS_ORIGINS": "http://127.0.0.1:5173,http://localhost:5173" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "thu-chi-local",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "env": {
+    "dev": {
+      "name": "thu-chi-api-dev",
+      "vars": { "APP_ENV": "dev", "CORS_ORIGINS": "http://127.0.0.1:5173,http://localhost:5173" },
+      "d1_databases": [{ "binding": "DB", "database_name": "thu-chi-dev", "database_id": "00000000-0000-0000-0000-000000000001", "migrations_dir": "migrations" }],
+      "triggers": { "crons": ["*/15 * * * *"] }
+    },
+    "test": {
+      "name": "thu-chi-api-test",
+      "vars": { "APP_ENV": "test", "CORS_ORIGINS": "http://127.0.0.1:4173,http://localhost:4173" },
+      "d1_databases": [{ "binding": "DB", "database_name": "thu-chi-test", "database_id": "00000000-0000-0000-0000-000000000002", "migrations_dir": "migrations" }],
+      "triggers": { "crons": ["*/15 * * * *"] }
+    },
+    "prod": {
+      "name": "thu-chi-api-prod",
+      "workers_dev": true,
+      "preview_urls": false,
+      "vars": {
+        "APP_ENV": "prod",
+        "CORS_ORIGINS": "https://thu-chi-api-prod.<account-subdomain>.workers.dev"
+      },
+      "version_metadata": {
+        "binding": "WORKER_VERSION"
+      },
+      "assets": {
+        "directory": "../frontend/dist",
+        "not_found_handling": "single-page-application",
+        "run_worker_first": ["/api", "/api/*", "/auth", "/auth/*"]
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "thu-chi-prod",
+          "database_id": "0e1e1be2-387e-4e3b-b0e5-16b7175d4461",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "triggers": {
+        "crons": ["*/15 * * * *"]
+      },
+      "observability": {
+        "enabled": true
+      }
+    }
+  }
+}

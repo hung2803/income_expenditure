@@ -1,0 +1,46 @@
+{
+  "name": "@thu-chi/backend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "runtime:check": "node scripts/check-runtime.mjs",
+    "dev": "node scripts/local.mjs serve dev",
+    "dev:test": "node scripts/local.mjs serve test",
+    "build": "wrangler deploy --dry-run --env dev --outdir dist",
+    "build:test": "wrangler deploy --dry-run --env test --outdir dist/test",
+    "build:prod": "wrangler deploy --dry-run --env prod --outdir dist/prod",
+    "typecheck": "tsc -p tsconfig.json",
+    "db:migrate:local": "node scripts/local.mjs migrate dev",
+    "db:migrate:test": "node scripts/local.mjs migrate test",
+    "db:check:local": "node scripts/local.mjs check-db dev",
+    "db:check:test": "node scripts/local.mjs check-db test",
+    "cloud:check": "node scripts/cloud.mjs check",
+    "cloud:migrate": "node scripts/cloud.mjs migrate",
+    "cloud:deploy": "node scripts/cloud.mjs deploy",
+    "cloud:secret": "node scripts/cloud.mjs secret",
+    "notifications:keys": "node scripts/generate-notification-keys.mjs",
+    "test:config": "node --test scripts/cloud-config.test.mjs scripts/preview.test.mjs scripts/bootstrap-config.test.mjs",
+    "test:auth": "node --experimental-strip-types --experimental-sqlite --test test/auth.test.mjs",
+    "test:admin": "node --experimental-strip-types --experimental-sqlite --experimental-loader ./test/resolve-ts-loader.mjs --test test/admin-api.test.mjs",
+    "test:budgets": "node --experimental-strip-types --experimental-sqlite --experimental-loader ./test/resolve-ts-loader.mjs --test test/budgets-data.test.mjs test/budgets-api.test.mjs",
+    "test:notifications": "node --experimental-strip-types --experimental-sqlite --experimental-loader ./test/resolve-ts-loader.mjs --test test/notifications-api.test.mjs",
+    "test:p10": "node --experimental-strip-types --experimental-sqlite --experimental-loader ./test/resolve-ts-loader.mjs --test test/p10-api.test.mjs",
+    "auth:bootstrap": "node --experimental-strip-types scripts/bootstrap.mjs",
+    "auth:seed:test": "node --experimental-strip-types scripts/seed-auth-test.mjs --local test",
+    "preview:prepare": "node scripts/preview.mjs prepare",
+    "preview:build": "wrangler deploy --dry-run --config wrangler.preview.generated.json --outdir dist/preview",
+    "preview:deploy": "node scripts/preview.mjs deploy",
+    "preview:rollback": "node scripts/preview.mjs rollback",
+    "test:finance": "node --experimental-strip-types --experimental-sqlite --test test/finance-repository.test.mjs test/transactions-repository.test.mjs"
+  },
+  "dependencies": {
+    "@block65/webcrypto-web-push": "^2.0.0",
+    "@simplewebauthn/server": "^14.0.3",
+    "@thu-chi/contracts": "*",
+    "hono": "^4.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

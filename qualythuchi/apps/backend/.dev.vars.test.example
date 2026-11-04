@@ -1,0 +1,3 @@
+# Test-only secrets. Copy to .dev.vars.test when test features require them.
+# No secrets are required by the P00 health API.
+# Never reuse production credentials in tests.
