@@ -34,7 +34,7 @@
       "preview_urls": false,
       "vars": {
         "APP_ENV": "prod",
-        "CORS_ORIGINS": "https://thu-chi-api-prod.<account-subdomain>.workers.dev"
+        "CORS_ORIGINS": "https://thu-chi-api-prod.sotay.workers.dev"
       },
       "version_metadata": {
         "binding": "WORKER_VERSION"
