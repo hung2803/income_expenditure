@@ -1,5 +1,8 @@
+interface Env {
+  API: Fetcher;
+}
 
-export async function onRequest(context) {
+export const onRequest: PagesFunction<Env> = async (context) => {
   const api = context.env.API;
 
   if (!api) {
@@ -19,4 +22,4 @@ export async function onRequest(context) {
       { status: 502 }
     );
   }
-}
+};
