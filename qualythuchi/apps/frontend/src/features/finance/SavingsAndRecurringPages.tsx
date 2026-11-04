@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { usePageLoader } from '@/hooks/use-page-loader';
+import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarDays, ChevronLeft, CirclePlus, PiggyBank, Repeat2, Target, Trash2 } from 'lucide-react';
 import { useAuth } from '../auth/auth-context';
@@ -15,7 +16,11 @@ export function SavingsGoalsPage(){
  const {session}=useAuth(); const owner=session?.user.id; const csrf=session?.csrfToken;
  const [goals,setGoals]=useState<ApiSavingsGoal[]>([]);const [message,setMessage]=useState('');const [busy,setBusy]=useState(false);const [editing,setEditing]=useState<string|null>(null);
  const [name,setName]=useState('');const [description,setDescription]=useState('');const [target,setTarget]=useState('');const [dueDate,setDueDate]=useState('');const [contributions,setContributions]=useState<Record<string,string>>({});
- const refresh=useCallback(async()=>{if(owner)try{setGoals(await financeApi.listSavingsGoals(owner));}catch(e){setMessage(errorText(e));}},[owner]);useEffect(()=>{void refresh();},[refresh]);
+ const refresh = usePageLoader(async (controller, refreshing) => {
+   if (!owner) return;
+   try { const items = await financeApi.listSavingsGoals(owner, controller.signal); if (!controller.signal.aborted) setGoals(items); }
+   catch (error) { if (controller.signal.aborted) return; if (refreshing) throw error; setMessage(errorText(error)); }
+ }, owner ?? '');
  const clear=()=>{setEditing(null);setName('');setDescription('');setTarget('');setDueDate('');};
  async function submit(e:FormEvent){e.preventDefault();if(!owner||!csrf)return;const parsed=parseVndInteger(target);if(!parsed||parsed<=0){setMessage('Số tiền mục tiêu phải là VND nguyên lớn hơn 0.');return;}setBusy(true);setMessage('');try{const input={name,description,targetAmount:parsed,dueDate:dueDate||null};if(editing)await financeApi.updateSavingsGoal(owner,editing,input,csrf);else await financeApi.createSavingsGoal(owner,input,csrf);clear();await refresh();setMessage(editing?'Đã cập nhật mục tiêu.':'Đã tạo mục tiêu.');}catch(e){setMessage(errorText(e));}finally{setBusy(false);}}
  async function contribute(goalId:string){if(!owner||!csrf)return;const value=parseVndInteger(contributions[goalId]??'');if(!value||value<=0){setMessage('Nhập số tiền đóng góp hợp lệ.');return;}setBusy(true);try{await financeApi.addSavingsContribution(owner,goalId,{amount:value,note:''},csrf);setContributions((v)=>({...v,[goalId]:''}));await refresh();setMessage('Đã ghi nhận khoản đóng góp.');}catch(e){setMessage(errorText(e));}finally{setBusy(false);}}
@@ -34,7 +39,16 @@ export function RecurringTransactionsPage(){
  const {session}=useAuth();const owner=session?.user.id;const csrf=session?.csrfToken;
  const [items,setItems]=useState<ApiRecurringSchedule[]>([]);const [wallets,setWallets]=useState<ApiWallet[]>([]);const [categories,setCategories]=useState<ApiCategory[]>([]);const [message,setMessage]=useState('');const [busy,setBusy]=useState(false);const [filter,setFilter]=useState('ALL');
  const [name,setName]=useState('');const [type,setType]=useState<'EXPENSE'|'INCOME'>('EXPENSE');const [amount,setAmount]=useState('');const [walletId,setWalletId]=useState('');const [categoryId,setCategoryId]=useState('');const [cadence,setCadence]=useState<'DAILY'|'WEEKLY'|'MONTHLY'>('MONTHLY');const [dayOfMonth,setDayOfMonth]=useState(new Date().getDate());const [startDate,setStartDate]=useState(today());
- const refresh=useCallback(async()=>{if(!owner)return;try{const [list,w,c]=await Promise.all([api.listRecurringSchedules(owner),api.listWallets(owner),api.listCategories(owner)]);setItems(list);setWallets(w);setCategories(c);if(!walletId&&w[0])setWalletId(w[0].id);if(!categoryId){const cat=c.find(x=>x.type===type);if(cat)setCategoryId(cat.id);}}catch(e){setMessage(errorText(e));}},[owner,categoryId,type,walletId]);useEffect(()=>{void refresh();},[refresh]);
+ const refresh = usePageLoader(async (controller, refreshing) => {
+   if (!owner) return;
+   try {
+     const [list, w, c] = await Promise.all([api.listRecurringSchedules(owner, controller.signal), api.listWallets(owner, controller.signal), api.listCategories(owner, controller.signal)]);
+     if (controller.signal.aborted) return;
+     setItems(list); setWallets(w); setCategories(c);
+     setWalletId(current => current || w[0]?.id || '');
+     setCategoryId(current => current || c.find(item => item.type === type)?.id || '');
+   } catch (error) { if (controller.signal.aborted) return; if (refreshing) throw error; setMessage(errorText(error)); }
+ }, owner ?? '');
  const selectedCategories=categories.filter(c=>c.type===type);const filtered=items.filter(i=>filter==='ALL'||i.type===filter);const upcoming=items.filter(i=>i.isActive&&i.nextDueDate<=new Date(Date.now()+7*86400000).toISOString().slice(0,10)).sort((a,b)=>a.nextDueDate.localeCompare(b.nextDueDate));
  async function submit(e:FormEvent){e.preventDefault();if(!owner||!csrf)return;const sum=parseVndInteger(amount);if(!sum||sum<1){setMessage('Số tiền phải là VND nguyên lớn hơn 0.');return;}if(!walletId||!categoryId){setMessage('Bạn cần tạo ví và danh mục phù hợp trước.');return;}setBusy(true);try{await api.createRecurringSchedule(owner,{name,type,amount:sum,walletId,categoryId,cadence,intervalCount:1,dayOfMonth:cadence==='MONTHLY'?dayOfMonth:null,startDate,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone||'Asia/Bangkok',note:''},csrf);setName('');setAmount('');await refresh();setMessage('Đã tạo khoản định kỳ. Khoản này chỉ ghi sổ sau khi xác nhận thanh toán.');}catch(e){setMessage(errorText(e));}finally{setBusy(false);}}
  async function confirm(item:ApiRecurringSchedule,due:string){if(!owner||!csrf||!window.confirm(`Xác nhận đã thanh toán “${item.name}” ${currency(item.amount)} cho kỳ ${due}?`))return;setBusy(true);try{const result=await api.confirmRecurringPayment(owner,item.id,due,csrf);await refresh();setMessage(result.duplicate?'Kỳ này đã được ghi nhận trước đó.':'Đã xác nhận và thêm giao dịch vào sổ.');}catch(e){setMessage(errorText(e));}finally{setBusy(false);}}

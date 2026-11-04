@@ -1,3 +1,4 @@
+import { usePageLoader } from '@/hooks/use-page-loader';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ArrowLeftRight, ArrowUpRight, ChevronLeft } from 'lucide-react';
@@ -33,6 +34,7 @@ export function TransferPage() {
     const [nextWallets, nextTransfers] = await Promise.all([
       financeApi.listWallets(userId, signal), financeApi.listTransfers(userId, signal)
     ]);
+    if (signal?.aborted) return;
     setWallets(nextWallets);
     setTransfers(nextTransfers);
     await Promise.all([
@@ -41,21 +43,22 @@ export function TransferPage() {
     ]);
   }, [userId]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    void refresh(controller.signal).catch(async () => {
+  usePageLoader(async (controller, refreshing) => {
+    if (!refreshing) setLoading(true);
+    await refresh(controller.signal).catch(async (error: unknown) => {
       if (controller.signal.aborted) return;
+      if (refreshing) throw error;
       try {
         const [walletRecords, transferRecords] = await Promise.all([
           listLocalRecords<ApiWallet>(userId, 'wallets'), listLocalRecords<ApiTransfer>(userId, 'transfers')
         ]);
+        if (controller.signal.aborted) return;
         setWallets(walletRecords.map((record) => record.value));
+        if (controller.signal.aborted) return;
         setTransfers(transferRecords.filter((record) => !record.deleted).map((record) => record.value));
       } catch { showToast('Không tải được ví và lịch sử chuyển tiền. Hãy thử kết nối lại.'); }
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, [refresh, showToast, userId]);
+  }, userId);
 
   useEffect(() => {
     if (!wallets.some((wallet) => wallet.id === sourceWalletId)) setSourceWalletId(wallets[0]?.id ?? '');

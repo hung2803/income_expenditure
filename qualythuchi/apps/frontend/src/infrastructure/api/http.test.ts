@@ -46,4 +46,35 @@ describe('API configuration and transport', () => {
       vi.useRealTimers();
     }
   });
+
+  it('shares simultaneous GETs but never caches a completed response', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => Response.json({ amount: 12 }));
+    const http = createHttpClient('', fetcher);
+    const [a, b] = await Promise.all([http.get<{ amount: number }>('/same'), http.get<{ amount: number }>('/same')]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    a.amount = 50;
+    expect(b.amount).toBe(12);
+    await http.get('/same');
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('cancels one reader without cancelling another, aborting transport after the last reader', async () => {
+    let complete!: (response: Response) => void;
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() => new Promise(resolve => { complete = resolve; }));
+    const http = createHttpClient('', fetcher);
+    const a = new AbortController(); const b = new AbortController();
+    const first = http.get('/same', { signal: a.signal });
+    const second = http.get('/same', { signal: b.signal });
+    a.abort();
+    await expect(first).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(fetcher.mock.calls[0][1]?.signal?.aborted).toBe(false);
+    complete(Response.json({ ok: true }));
+    await expect(second).resolves.toEqual({ ok: true });
+    const c = new AbortController();
+    const third = http.get('/same', { signal: c.signal });
+    c.abort();
+    await expect(third).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(fetcher.mock.calls[1][1]?.signal?.aborted).toBe(true);
+    complete(Response.json({ ok: true }));
+  });
 });

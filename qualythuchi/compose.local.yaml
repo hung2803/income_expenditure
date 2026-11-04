@@ -1,0 +1,9 @@
+# Backend hot reload with the SAME d1-data volume. No migration/seed at startup.
+services:
+  backend:
+    command: [npm, run, dev, --, --ip, 0.0.0.0]
+    volumes:
+      - ./apps/backend/src:/app/apps/backend/src:ro
+      - ./apps/backend/scripts:/app/apps/backend/scripts:ro
+      - ./apps/backend/wrangler.jsonc:/app/apps/backend/wrangler.jsonc:ro
+      - ./packages/contracts/src:/app/packages/contracts/src:ro

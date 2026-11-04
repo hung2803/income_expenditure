@@ -108,9 +108,9 @@ export class AuthStore {
       }
       if (generation !== this.generation) return;
       let message = hadSession ? 'Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại.' : null;
-      if (error instanceof ApiError && error.serverCode === 'SESSION_COOKIE_MISSING') {
+      if (hadSession && error instanceof ApiError && error.serverCode === 'SESSION_COOKIE_MISSING') {
         message = 'Máy chủ không nhận được cookie đăng nhập từ Safari. Hãy đăng nhập lại trong tab thường và giữ nguyên địa chỉ app.';
-      } else if (error instanceof ApiError && error.serverCode === 'SESSION_NOT_ACTIVE') {
+      } else if (hadSession && error instanceof ApiError && error.serverCode === 'SESSION_NOT_ACTIVE') {
         message = 'Cookie đã tới máy chủ nhưng session trong D1 không còn hiệu lực. Hãy đăng nhập lại; nếu tiếp tục, cần kiểm tra backend đang dùng đúng volume dữ liệu.';
       }
       this.set('anonymous', null, message);

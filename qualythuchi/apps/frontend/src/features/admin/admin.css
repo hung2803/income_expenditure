@@ -43,7 +43,7 @@
 .admin-empty h2 { margin: 0; color: #1c2b47; font-size: 15px; }
 .admin-empty p { margin: 0; line-height: 1.6; }
 .admin-alert { margin: 10px 0; padding: 10px 12px; border: 1px solid #ffced3; border-radius: 12px; color: #b73346; background: #fff1f2; font-size: 12px; line-height: 1.5; }
-.admin-dialog { position: fixed; inset: 0; box-sizing: border-box; width: min(430px, calc(100vw - 30px)); max-height: min(90svh, 760px); overflow: auto; margin: auto; padding: 23px 18px 17px; border: 1px solid #e5edf7; border-radius: 22px; color: #17243a; background: #fbfdff; box-shadow: 0 20px 70px #1d3c642b; }
+.admin-dialog { box-sizing: border-box; width: min(430px, calc(100vw - 30px)); padding: 23px 18px 17px; border: 1px solid #e5edf7; border-radius: 22px; color: #17243a; background: #fbfdff; box-shadow: 0 20px 70px #1d3c642b; }
 .admin-dialog::backdrop { background: #0b19355c; backdrop-filter: blur(2px); }
 .admin-dialog h2 { margin: 0 35px 5px 0; font-size: 19px; font-weight: 750; }
 .admin-dialog > p { margin: 0 0 17px; color: #7b8ba4; font-size: 12px; line-height: 1.55; }
@@ -88,7 +88,7 @@
 .admin-toolbar { display: flex; align-items: center; gap: 7px; margin-bottom: 9px; }
 .admin-toolbar .admin-search { min-width: 0; flex: 1; }
 .admin-budget-placeholder { padding: 35px 18px; }
-.admin-finance-dialog .admin-form { max-height: calc(90svh - 110px); overflow-y: auto; padding-top: 5px; }
+.admin-finance-dialog .admin-form { padding-top: 5px; }
 .admin-finance-dialog .finance-vnd-input { font-size: 13px; }
 .admin-audit-list { display: grid; gap: 8px; margin-top: 12px; }
 .admin-audit-card { border: 1px solid #e6edf6; border-radius: 15px; background: #fff; box-shadow: 0 4px 13px #34547d05; }

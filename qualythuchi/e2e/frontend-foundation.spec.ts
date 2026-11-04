@@ -33,6 +33,8 @@ test('manifest references usable PNG icons and standalone launch', async ({ page
     expect(result).toBe(icon.sizes);
   }
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/apple-touch-icon.png');
+  await expect(page.locator('meta[name="apple-mobile-web-app-capable"]')).toHaveAttribute('content', 'yes');
+  await expect(page.locator('meta[name="mobile-web-app-capable"]')).toHaveAttribute('content', 'yes');
 });
 
 test('router catches a render failure without exposing its internal message', async ({ page }) => {
@@ -66,10 +68,12 @@ test('cached app shell supports offline reload and deep links without caching AP
   await page.goto('/offline');
   await expect(page.getByRole('heading', { name: 'Bạn đang ngoại tuyến' })).toBeVisible();
   await page.goto('/login');
-  await expect(page.getByRole('heading', { name: 'Đăng nhập', exact: true })).toBeVisible();
+  // App-shell caching does not authenticate an offline visitor. A new document
+  // must keep protected data locked until the server can verify the session.
+  await expect(page.getByRole('heading', { name: 'Chưa kết nối được máy chủ', exact: true })).toBeVisible();
   await expect(page.getByText('Bạn đang offline. Đăng nhập và kết nối hệ thống cần có mạng.')).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Đăng nhập', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Chưa kết nối được máy chủ', exact: true })).toBeVisible();
 });
 
 test('login fits a narrow phone viewport', async ({ page }) => {

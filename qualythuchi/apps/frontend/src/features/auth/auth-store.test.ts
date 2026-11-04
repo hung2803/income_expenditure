@@ -68,6 +68,22 @@ describe('validated auth contract and redirects', () => {
 });
 
 describe('account session lifecycle', () => {
+  it('opens the login form without a cookie warning for a new visitor', async () => {
+    const { store, api } = fixture();
+    api.me.mockRejectedValue(new ApiError('HTTP', 'Missing session cookie', 401, 'SESSION_COOKIE_MISSING'));
+    await store.refresh();
+    expect(store.getSnapshot()).toMatchObject({ status: 'anonymous', session: null, message: null });
+  });
+
+  it('still reports a missing cookie when reopening a remembered account', async () => {
+    const { store, api, data } = fixture();
+    data.remember('user-a');
+    api.me.mockRejectedValue(new ApiError('HTTP', 'Missing session cookie', 401, 'SESSION_COOKIE_MISSING'));
+    await store.refresh();
+    expect(store.getSnapshot()).toMatchObject({ status: 'anonymous', session: null });
+    expect(store.getSnapshot().message).toContain('không nhận được cookie');
+  });
+
   it('accepts passkey login only after the browser returns the issued cookie for the same account', async () => {
     const { store, api, data } = fixture();
     await store.refresh();

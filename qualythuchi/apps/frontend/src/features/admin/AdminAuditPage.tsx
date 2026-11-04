@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { usePageLoader } from '@/hooks/use-page-loader';
+import { useMemo, useState } from 'react';
 import { ChevronLeft, FileClock, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { adminApi, type AdminAuditEvent } from '../../infrastructure/api/admin';
@@ -12,11 +13,9 @@ export function AdminAuditPage() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  useEffect(() => {
-    const controller = new AbortController();
-    void adminApi.listAudit(100, controller.signal).then(setEvents).catch(() => { if (!controller.signal.aborted) setError('Không tải được nhật ký quản trị.'); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, []);
+  usePageLoader(async (controller, refreshing) => {
+    await adminApi.listAudit(100, controller.signal).then((items) => { if (!controller.signal.aborted) { setEvents(items); setError(''); } }).catch((error: unknown) => { if (refreshing) throw error; if (!controller.signal.aborted) setError('Không tải được nhật ký quản trị.'); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+  }, 'admin-audit');
   const filtered = useMemo(() => events.filter((event) => `${event.actorUsername} ${event.ownerUsername} ${event.action} ${event.entity} ${event.recordId}`.toLocaleLowerCase('vi').includes(query.trim().toLocaleLowerCase('vi'))), [events, query]);
   return <div className="admin-page">
     <header className="admin-page-heading"><Link to="/more" aria-label="Quay lại"><ChevronLeft /></Link><div><h1>Nhật ký quản trị</h1><p>Theo dõi thay đổi do Super Admin thực hiện</p></div></header>

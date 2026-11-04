@@ -2,6 +2,10 @@ import { expect, test } from '@playwright/test';
 import type { BrowserContext, Page } from '@playwright/test';
 import type { AuthSession } from '@thu-chi/contracts';
 
+// These UI/error-state fixtures intercept auth; real API coverage lives in
+// auth-runtime.spec.ts. Blocking SW keeps those interceptions reliable in WebKit.
+test.use({ serviceWorkers: 'block' });
+
 const user = (admin = false): AuthSession => ({
   user: { id: admin ? 'admin-1' : 'user-a', username: admin ? 'admin' : 'an', displayName: admin ? 'Quản trị viên' : 'Nguyễn An', role: admin ? 'SUPER_ADMIN' : 'USER' },
   expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
@@ -11,6 +15,10 @@ const user = (admin = false): AuthSession => ({
 // Only this test fixture simulates auth. The production bundle always calls the backend.
 async function authServer(context: BrowserContext, initial: AuthSession | null = null) {
   const server = { session: initial, logoutOffline: false, loginStatus: 200, loginCalls: 0 };
+  // These tests isolate auth UI. New dashboard previews must not issue
+  // unauthorized requests for the synthetic identities or race logout cleanup.
+  await context.route('**/api/users/*/savings-goals', (route) => route.fulfill({ json: { goals: [] } }));
+  await context.route('**/api/users/*/recurring-schedules', (route) => route.fulfill({ json: { schedules: [] } }));
   await context.route('**/auth/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -106,7 +114,7 @@ test('logout scrubs account data, keeps the app shell and prevents history from 
     localStorage.setItem('thu-chi:user:user-a:transactions', 'private-old-user-data');
     sessionStorage.setItem('thu-chi:user:user-a:profile', 'private-old-user-data');
     localStorage.setItem('unrelated-preference', 'keep');
-    const request = indexedDB.open('thu-chi:user:user-a:data', 1);
+    const request = indexedDB.open('thu-chi:user:user-a:data');
     await new Promise<void>((resolve, reject) => { request.onsuccess = () => { request.result.close(); resolve(); }; request.onerror = () => reject(request.error); });
     await (await caches.open('thu-chi:user:user-a:api')).put('/private-test', new Response('private-old-user-data'));
     await (await caches.open('workbox-app-shell-sentinel')).put('/shell-test', new Response('keep'));
@@ -172,7 +180,7 @@ test('an IndexedDB connection held by another view blocks account switching unti
   await page.goto('/account');
   await expect(page.getByRole('heading', { name: 'Nguyễn An' })).toBeVisible();
   await page.evaluate(async () => {
-    const request = indexedDB.open('thu-chi:user:user-a:data', 1);
+    const request = indexedDB.open('thu-chi:user:user-a:data');
     await new Promise<void>((resolve, reject) => {
       request.onsuccess = () => { (window as Window & { authTestDatabase?: IDBDatabase }).authTestDatabase = request.result; resolve(); };
       request.onerror = () => reject(request.error);
@@ -193,6 +201,6 @@ test('a revoked session is rechecked on focus and private content is removed', a
   server.session = null;
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByRole('alert')).toHaveText('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+  await expect(page.getByRole('alert')).toHaveText('Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại.');
   await expect(page.getByRole('heading', { name: /Xin chào/ })).toHaveCount(0);
 });

@@ -6,12 +6,15 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { normalizeApiBaseUrl } from './src/infrastructure/api/url';
 import { backendProxyHeaders } from './src/infrastructure/api/proxy-origin';
+import { devPwaRecovery } from './dev-pwa-recovery';
+import { appManifest } from './pwa-manifest';
 
 export default defineConfig(({ mode }) => {
   // Validate the public backend origin at startup/build, before shipping a bundle.
   const env = loadEnv(mode, process.cwd(), '');
-  normalizeApiBaseUrl(env.VITE_API_BASE_URL ?? '');
-  const target = process.env.API_PROXY_TARGET ?? 'http://127.0.0.1:8787';
+  if (mode !== 'localdev') normalizeApiBaseUrl(env.VITE_API_BASE_URL ?? '');
+  const localDev = mode === 'localdev';
+  const target = localDev ? 'http://127.0.0.1:8787' : process.env.API_PROXY_TARGET ?? 'http://127.0.0.1:8787';
   const backend: ProxyOptions = { target, changeOrigin: true, configure(proxy) {
     proxy.on('proxyReq', (proxyRequest, request) => {
       const secure = 'encrypted' in request.socket && request.socket.encrypted === true;
@@ -37,28 +40,13 @@ export default defineConfig(({ mode }) => {
   } };
   const proxy = { '/api': backend, '/auth': backend };
   return {
+    ...(localDev ? { define: { 'import.meta.env.VITE_API_BASE_URL': JSON.stringify('') } } : {}),
     resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
-    plugins: [react(), tailwindcss(), VitePWA({
+    plugins: [devPwaRecovery(), react(), tailwindcss(), VitePWA({
       registerType: 'prompt',
       injectRegister: null,
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
-      manifest: {
-        id: '/',
-        name: 'Quản lý thu chi',
-        short_name: 'Thu Chi',
-        lang: 'vi',
-        start_url: '/',
-        scope: '/',
-        description: 'Ghi chép và theo dõi thu chi cá nhân.',
-        display: 'standalone',
-        theme_color: '#237bff',
-        background_color: '#f8fafc',
-        icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
-        ]
-      },
+      manifest: appManifest,
       workbox: {
         importScripts: ['/push-sw.js'],
         globPatterns: ['**/*.{js,css,html,png,svg,ico,webmanifest}'],

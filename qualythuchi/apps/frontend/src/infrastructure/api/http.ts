@@ -11,6 +11,7 @@ interface RequestOptions { signal?: AbortSignal; csrfToken?: string }
 
 export function createHttpClient(baseUrl = '', fetcher: typeof fetch = fetch) {
   const origin = normalizeApiBaseUrl(baseUrl);
+  const reads = new Map<string, { controller: AbortController; promise: Promise<unknown>; readers: number }>();
   async function request<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body: unknown, options: RequestOptions): Promise<T> {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10_000);
@@ -58,8 +59,37 @@ export function createHttpClient(baseUrl = '', fetcher: typeof fetch = fetch) {
         options.signal?.removeEventListener('abort', cancel);
       }
   }
+  function get<T>(path: string, options: RequestOptions = {}): Promise<T> {
+    if (options.signal?.aborted) return Promise.reject(new ApiError('CANCELLED', 'Yêu cầu đã được hủy.'));
+    let flight = reads.get(path);
+    if (!flight) {
+      const controller = new AbortController();
+      flight = { controller, readers: 0, promise: request<T>('GET', path, undefined, { ...options, signal: controller.signal }) };
+      const created = flight;
+      reads.set(path, created);
+      void created.promise.finally(() => { if (reads.get(path) === created) reads.delete(path); }).catch(() => undefined);
+    }
+    const shared = flight;
+    shared.readers++;
+    return new Promise<T>((resolve, reject) => {
+      let done = false;
+      const finish = () => {
+        if (done) return false;
+        done = true;
+        options.signal?.removeEventListener('abort', cancel);
+        if (--shared.readers === 0) {
+          shared.controller.abort();
+          if (reads.get(path) === shared) reads.delete(path);
+        }
+        return true;
+      };
+      const cancel = () => { if (finish()) reject(new ApiError('CANCELLED', 'Yêu cầu đã được hủy.')); };
+      options.signal?.addEventListener('abort', cancel, { once: true });
+      shared.promise.then((value) => { if (finish()) resolve(structuredClone(value) as T); }, (error: unknown) => { if (finish()) reject(error); });
+    });
+  }
   return {
-    get: <T>(path: string, options: RequestOptions = {}) => request<T>('GET', path, undefined, options),
+    get,
     post: <T>(path: string, body?: unknown, options: RequestOptions = {}) => request<T>('POST', path, body ?? {}, options),
     put: <T>(path: string, body: unknown, options: RequestOptions = {}) => request<T>('PUT', path, body, options),
     patch: <T>(path: string, body: unknown, options: RequestOptions = {}) => request<T>('PATCH', path, body, options),

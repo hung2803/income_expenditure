@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { usePageLoader } from '@/hooks/use-page-loader';
+import { useMemo, useState } from 'react';
+import { useModalDialog } from '@/hooks/use-modal-dialog';
 import { ChevronLeft, Crown, Pencil, Plus, Search, ShieldCheck, Users, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { AuthUser } from '@thu-chi/contracts';
@@ -18,20 +20,16 @@ export function AdminUsersPage() {
   const [draft, setDraft] = useState({ username: '', displayName: '', password: '', role: 'USER' as AuthUser['role'], isActive: true });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useModalDialog(dialogOpen);
 
-  async function loadUsers(signal?: AbortSignal) {
-    setLoading(true);
+  async function loadUsers(signal?: AbortSignal, refreshing = false) {
+    if (!refreshing) setLoading(true);
     setError('');
-    try { setUsers(await adminApi.listUsers(signal)); }
-    catch { if (!signal?.aborted) setError('Không tải được danh sách tài khoản. Hãy thử tải lại.'); }
+    try { const items = await adminApi.listUsers(signal); if (!signal?.aborted) setUsers(items); }
+    catch (error) { if (refreshing) throw error; if (!signal?.aborted) setError('Không tải được danh sách tài khoản. Hãy thử tải lại.'); }
     finally { if (!signal?.aborted) setLoading(false); }
   }
-  useEffect(() => { const controller = new AbortController(); void loadUsers(controller.signal); return () => controller.abort(); }, []);
-  useEffect(() => {
-    if (dialogOpen) dialog.current?.showModal();
-    else dialog.current?.close();
-  }, [dialogOpen]);
+  const reloadUsers = usePageLoader((controller, refreshing) => loadUsers(controller.signal, refreshing), 'admin-users');
 
   const visibleUsers = useMemo(() => users.filter((user) => {
     const matchesRole = filter === 'ALL' || user.role === filter;
@@ -51,7 +49,7 @@ export function AdminUsersPage() {
       } else {
         await adminApi.createUser({ username: draft.username, displayName: draft.displayName, password: draft.password }, session!.csrfToken);
       }
-      await loadUsers(); setDraft({ username: '', displayName: '', password: '', role: 'USER', isActive: true }); setEditing(null); setDialogOpen(false);
+      await reloadUsers(); setDraft({ username: '', displayName: '', password: '', role: 'USER', isActive: true }); setEditing(null); setDialogOpen(false);
     } catch { setMessage(editing ? 'Không lưu được thay đổi. Hãy kiểm tra tên đăng nhập, quyền và trạng thái Admin.' : 'Không tạo được tài khoản. Hãy kiểm tra tên đăng nhập và thử lại.'); }
     finally { setSaving(false); }
   }
@@ -68,7 +66,7 @@ export function AdminUsersPage() {
     try {
       if (user.isActive) await adminApi.deactivateUser(user.id, session!.csrfToken);
       else await adminApi.updateUser(user.id, { isActive: true }, session!.csrfToken);
-      await loadUsers();
+      await reloadUsers();
     } catch { setError(`Không thể ${action.toLocaleLowerCase('vi')} tài khoản.`); }
   }
 
@@ -79,7 +77,7 @@ export function AdminUsersPage() {
       {([['ALL', `Tất cả (${users.length})`], ['USER', `Người dùng (${users.filter((user) => user.role === 'USER').length})`], ['SUPER_ADMIN', `Quản trị (${users.filter((user) => user.role === 'SUPER_ADMIN').length})`]] as const).map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={filter === value} className={filter === value ? 'admin-filter-active' : ''} onClick={() => setFilter(value)}>{label}</button>)}
     </div>
     <section className="admin-stats-grid"><article><Users /><span><small>Tài khoản</small><strong>{users.length}</strong></span></article><article><ShieldCheck /><span><small>Người dùng</small><strong>{users.filter((user) => user.role === 'USER').length}</strong></span></article></section>
-    <section className="admin-list-section"><div className="account-section-title"><h2>Danh sách người dùng</h2><button type="button" className="admin-text-button" onClick={() => void loadUsers()} disabled={loading}>Tải lại</button></div>
+    <section className="admin-list-section"><div className="account-section-title"><h2>Danh sách người dùng</h2><button type="button" className="admin-text-button" onClick={() => void reloadUsers().catch(() => setError('Không tải được danh sách tài khoản.'))} disabled={loading}>Tải lại</button></div>
       {error && <p className="admin-alert" role="alert">{error}</p>}
       {loading ? <div className="admin-empty">Đang tải tài khoản…</div> : visibleUsers.length === 0 ? <div className="admin-empty">Không tìm thấy tài khoản phù hợp.</div> : <div className="admin-user-list">{visibleUsers.map((user) => <article className="admin-user-row" key={user.id}><span className={`admin-user-avatar ${user.role === 'SUPER_ADMIN' ? 'admin-avatar-purple' : ''}`}>{user.displayName.trim().split(/\s+/).slice(-2).map((part) => part[0]).join('').toLocaleUpperCase()}</span><span className="admin-user-copy"><strong>{user.displayName}</strong><small>@{user.username} · {user.isActive ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}</small></span><span className={`account-role ${user.role === 'USER' ? 'account-role-user' : ''}`}>{user.role === 'SUPER_ADMIN' ? 'Quản trị' : 'Người dùng'}</span><div className="admin-account-actions"><button type="button" onClick={() => openEdit(user)} aria-label={`Sửa ${user.username}`}><Pencil /></button><button type="button" disabled={user.id === session.user.id && user.isActive} onClick={() => void deactivate(user)}>{user.isActive ? 'Khóa' : 'Mở lại'}</button></div></article>)}</div>}
     </section>

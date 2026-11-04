@@ -10,6 +10,7 @@ import { OfflinePage } from '@/features/system/OfflinePage';
 import { AuthGuard } from '@/features/auth/AuthGuard';
 import { AccountShell } from '@/features/account/AccountShell';
 import { AccountDashboard } from '@/features/account/AccountDashboard';
+import { CalendarPage } from '@/features/account/CalendarPage';
 import { AccountPage } from '@/features/account/AccountPage';
 import { MorePage } from '@/features/account/MorePage';
 import { WalletsPage } from '@/features/finance/WalletsPage';
@@ -41,6 +42,7 @@ export const router = createBrowserRouter([
       { element: <AuthGuard />, children: [
         { element: <AccountShell />, children: [
           { path: 'dashboard', element: <AccountDashboard /> },
+          { path: 'calendar', element: <CalendarPage /> },
           { path: 'account', element: <AccountPage /> },
           { path: 'notifications', element: <NotificationsPage /> },
           { path: 'more', element: <MorePage /> },

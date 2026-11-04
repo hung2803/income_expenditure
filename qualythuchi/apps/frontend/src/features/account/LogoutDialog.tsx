@@ -1,11 +1,10 @@
-import { useEffect, useRef } from 'react';
 import { LogOut, X } from 'lucide-react';
 import { useAuth } from '../auth/auth-context';
+import { useModalDialog } from '@/hooks/use-modal-dialog';
 
 export function LogoutDialog({ onClose }: { onClose: () => void }) {
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useModalDialog();
   const { logout } = useAuth();
-  useEffect(() => { const element = dialog.current; element?.showModal(); return () => element?.close(); }, []);
   return <dialog ref={dialog} className="account-dialog" onCancel={onClose} aria-labelledby="logout-title" aria-describedby="logout-description">
     <button className="account-dialog-close" aria-label="Đóng" onClick={onClose}><X aria-hidden="true" /></button>
     <span className="account-empty-icon account-logout-icon"><LogOut aria-hidden="true" /></span>

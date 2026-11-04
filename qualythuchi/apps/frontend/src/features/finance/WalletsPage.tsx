@@ -1,4 +1,6 @@
+import { usePageLoader } from '@/hooks/use-page-loader';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useModalDialog } from '@/hooks/use-modal-dialog';
 import type { FormEvent } from 'react';
 import { Banknote, Building2, ChevronDown, ChevronLeft, CirclePlus, Landmark, Pencil, Plus, Trash2, Wallet as WalletIcon, WalletCards, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -12,7 +14,7 @@ import { FinanceToast } from './FinanceToast';
 import { useFinanceToast } from './use-finance-toast';
 import { financeApi } from '@/infrastructure/api/finance';
 import type { ApiWallet } from '@/infrastructure/api/finance';
-import { listLocalRecords, putLocalRecord } from '@/infrastructure/sync/sync-storage';
+import { cacheRemoteList, listLocalRecords } from '@/infrastructure/sync/sync-storage';
 import './finance.css';
 
 const walletTypes: Array<{ value: WalletType; label: string; icon: typeof WalletIcon; tint: string }> = [
@@ -30,18 +32,17 @@ export function WalletsPage() {
   const [editing, setEditing] = useState<Wallet | null>(null);
   const balances = useMemo(() => new Map(wallets.map((wallet) => [wallet.id, wallet.currentBalance])), [wallets]);
   const total = useMemo(() => wallets.reduce((sum, wallet) => sum + wallet.currentBalance, 0), [wallets]);
-  useEffect(() => {
-    const controller = new AbortController();
-    void financeApi.listWallets(userId, controller.signal).then(async (items) => {
-      setWallets(items);
-      await Promise.all(items.map((item) => putLocalRecord({ key: `wallets:${item.id}`, ownerUserId: userId, entity: 'wallets', id: item.id, value: item, updatedAt: Date.now() })));
-    }).catch(async () => {
+  usePageLoader(async (controller, refreshing) => {
+    await financeApi.listWallets(userId, controller.signal).then(async (items) => {
+      const local = await cacheRemoteList(userId, 'wallets', items, controller.signal);
+      if (!controller.signal.aborted) setWallets(local);
+    }).catch(async (error: unknown) => {
       if (controller.signal.aborted) return;
-      try { setWallets((await listLocalRecords<ApiWallet>(userId, 'wallets')).map((item) => item.value)); }
+      if (refreshing) throw error;
+      try { const records = await listLocalRecords<ApiWallet>(userId, 'wallets'); if (!controller.signal.aborted) setWallets(records.map((item) => item.value)); }
       catch { showToast('Không tải được danh sách ví. Hãy thử kết nối lại.'); }
     });
-    return () => controller.abort();
-  }, [userId, showToast]);
+  }, userId);
   if (!session) return null;
 
   async function saveWallet(wallet: Wallet) {
@@ -104,12 +105,10 @@ function WalletDialog({ wallet, wallets, onClose, onSave }: { wallet: Wallet | n
   const [accountLabel, setAccountLabel] = useState(wallet?.accountLabel ?? '');
   const [accountReference, setAccountReference] = useState(wallet?.accountReference ?? '');
   const { toast, showToast } = useFinanceToast();
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useModalDialog();
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    const element = dialog.current;
-    element?.showModal();
-    return () => { if (closeTimer.current) clearTimeout(closeTimer.current); element?.close(); };
+    return () => { if (closeTimer.current) clearTimeout(closeTimer.current); };
   }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {

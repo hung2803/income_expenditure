@@ -1,6 +1,14 @@
 import { expect, it } from 'vitest';
 import { backendProxyHeaders, backendRequestOrigin } from './proxy-origin';
 
+it('preserves the loopback frontend origin for WebAuthn while leaving foreign origins untouched', () => {
+  const target = 'http://127.0.0.1:8788';
+  expect(backendProxyHeaders('http://localhost:4173', 'localhost:4173', false, target)).toEqual({ origin: 'http://localhost:4173' });
+  expect(backendProxyHeaders('http://127.0.0.1:4173', '127.0.0.1:4173', false, target)).toEqual({ origin: 'http://127.0.0.1:4173' });
+  expect(backendProxyHeaders('http://192.0.2.10:4173', '192.0.2.10:4173', false, target)).toEqual({ origin: target });
+  expect(backendProxyHeaders('https://foreign.example', 'localhost:4173', false, target)).toEqual({ origin: 'https://foreign.example' });
+});
+
 it('proxies same-origin phone and local auth without allowing a foreign or missing Origin', () => {
   const target = 'http://backend:8787';
   expect(backendRequestOrigin('http://192.168.1.12:5173', '192.168.1.12:5173', false, target)).toBe(target);

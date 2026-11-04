@@ -53,6 +53,7 @@ const cursorStore = 'sync-state';
 
 function openDatabase(ownerUserId: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
+    let blocked = false;
     const request = indexedDB.open(userDatabaseName(ownerUserId), 2);
     request.onupgradeneeded = () => {
       const database = request.result;
@@ -64,9 +65,19 @@ function openDatabase(ownerUserId: string): Promise<IDBDatabase> {
       }
       if (!database.objectStoreNames.contains(cursorStore)) database.createObjectStore(cursorStore, { keyPath: 'key' });
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const database = request.result;
+      // Another tab may be clearing this account during logout. Release our
+      // adapter connections instead of blocking its delete/upgrade request.
+      database.onversionchange = () => database.close();
+      if (blocked) database.close();
+      else resolve(database);
+    };
     request.onerror = () => reject(request.error ?? new Error('Không mở được IndexedDB.'));
-    request.onblocked = () => reject(new Error('IndexedDB đang được sử dụng ở tab khác.'));
+    request.onblocked = () => {
+      blocked = true;
+      reject(new Error('IndexedDB đang được sử dụng ở tab khác.'));
+    };
   });
 }
 
@@ -182,6 +193,37 @@ export async function putLocalRecord<T>(record: LocalRecord<T>): Promise<void> {
     const transaction = database.transaction(recordStore, 'readwrite');
     transaction.objectStore(recordStore).put(record);
     await transactionDone(transaction);
+  } finally { database.close(); }
+}
+
+// Reconcile a complete API list in one transaction. Never replace unsent edits
+// with an older server value, or resurrect a local pending deletion.
+export async function cacheRemoteList<T extends { id: string }>(ownerUserId: string, entity: LocalEntity, items: T[], signal?: AbortSignal): Promise<T[]> {
+  const database = await openDatabase(ownerUserId);
+  try {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    const transaction = database.transaction([recordStore, outboxStore], 'readwrite');
+    const done = transactionDone(transaction);
+    const records = transaction.objectStore(recordStore);
+    const [local, outbox] = await Promise.all([
+      requestValue(records.getAll()) as Promise<Array<LocalRecord<T>>>,
+      requestValue(transaction.objectStore(outboxStore).index('ownerUserId').getAll(ownerUserId)) as Promise<OutboxItem[]>
+    ]);
+    if (signal?.aborted) { transaction.abort(); await done; }
+    const pending = new Set(outbox.filter(item => item.entity === entity && item.status !== 'synced').map(item => item.recordId));
+    const merged = new Map(items.map(item => [item.id, item]));
+    for (const record of local) {
+      if (record.ownerUserId !== ownerUserId || record.entity !== entity) continue;
+      if (pending.has(record.id)) {
+        if (record.deleted) merged.delete(record.id);
+        else merged.set(record.id, record.value);
+      } else if (!merged.has(record.id)) records.delete(record.key);
+    }
+    for (const item of items) if (!pending.has(item.id)) {
+      records.put({ key: `${entity}:${item.id}`, ownerUserId, entity, id: item.id, value: item, updatedAt: Date.now() } satisfies LocalRecord<T>);
+    }
+    await done;
+    return [...merged.values()];
   } finally { database.close(); }
 }
 

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { usePageLoader } from '@/hooks/use-page-loader';
 import { Fingerprint, KeyRound, LoaderCircle, Trash2 } from 'lucide-react';
 import { startRegistration } from '@simplewebauthn/browser';
 import { useAuth } from '../auth/auth-context';
@@ -13,13 +14,12 @@ export function PasskeysSettings() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
-  const refresh = useCallback(async () => {
+  const refresh = usePageLoader(async (controller, refreshing) => {
     if (!session) return;
-    try { setPasskeys((await http.get<{ passkeys: Passkey[] }>('/auth/passkeys')).passkeys); }
-    catch { setMessage('Không tải được passkey đã đăng ký.'); }
-    finally { setLoading(false); }
-  }, [session]);
-  useEffect(() => { void refresh(); }, [refresh]);
+    try { const data = await http.get<{ passkeys: Passkey[] }>('/auth/passkeys', { signal: controller.signal }); if (!controller.signal.aborted) setPasskeys(data.passkeys); }
+    catch (error) { if (controller.signal.aborted) return; if (refreshing) throw error; setMessage('Không tải được passkey đã đăng ký.'); }
+    finally { if (!controller.signal.aborted) setLoading(false); }
+  }, session?.user.id ?? '');
 
   async function addPasskey() {
     if (!session || busy) return;

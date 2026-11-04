@@ -24,13 +24,19 @@ test('real username/password login, role guards and logout work through the app'
   await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('Tên đăng nhập hoặc mật khẩu không đúng.');
   await page.getByLabel('Mật khẩu', { exact: true }).fill(AUTH_TEST_PASSWORD);
+  const loginResponse = page.waitForResponse((response) => response.url().endsWith('/auth/login') && response.request().method() === 'POST');
   await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+  const cookieHeader = (await (await loginResponse).allHeaders())['set-cookie'];
+  expect(cookieHeader).toContain('HttpOnly');
+  expect(cookieHeader).toContain('SameSite=Lax');
   await expect(page).toHaveURL(/\/account$/);
   await expect(page.getByRole('heading', { name: user.displayName, exact: true })).toBeVisible();
   const cookies = await context.cookies();
   const sessionCookie = cookies.find((cookie) => cookie.name === 'thu_chi_dev_session');
   expect(sessionCookie?.httpOnly).toBe(true);
-  expect(sessionCookie?.sameSite).toBe('Lax');
+  // Windows WebKit reports None in its cookie metadata even for this Lax header.
+  // Check the actual Set-Cookie above on both engines, plus Chromium's metadata.
+  if (browserName === 'chromium') expect(sessionCookie?.sameSite).toBe('Lax');
   const access = await page.evaluate(async (ids) => {
     const own = await fetch(`/api/users/${ids.user}`);
     const other = await fetch(`/api/users/${ids.admin}?role=SUPER_ADMIN`);
@@ -46,6 +52,9 @@ test('real username/password login, role guards and logout work through the app'
     return response.status;
   });
   expect(csrfDenied).toBe(403);
+  await page.addLocatorHandler(page.getByRole('complementary', { name: 'Trạng thái ứng dụng' }), async (notice) => {
+    await notice.getByRole('button', { name: 'Đóng', exact: true }).click();
+  });
   await page.getByRole('button', { name: 'Đăng xuất', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Đăng xuất', exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);

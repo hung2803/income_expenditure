@@ -1,4 +1,6 @@
+import { usePageLoader } from '@/hooks/use-page-loader';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useModalDialog } from '@/hooks/use-modal-dialog';
 import type { FormEvent } from 'react';
 import { ArrowDown, ArrowUp, CalendarDays, CirclePlus, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -13,9 +15,10 @@ import { VndInput } from './VndInput';
 import type { Transaction, TransactionType } from './transactions-data';
 import { financeApi } from '@/infrastructure/api/finance';
 import { syncOutbox } from '@/infrastructure/sync/sync-engine';
-import { enqueueLocalMutation, listLocalRecords, putLocalRecord } from '@/infrastructure/sync/sync-storage';
+import { enqueueLocalMutation, cacheRemoteList, listLocalRecords } from '@/infrastructure/sync/sync-storage';
 import './finance.css';
 import { localMonthKey } from './budgets-data';
+import { DeleteTransactionDialog } from './DeleteTransactionDialog';
 
 type Filter = 'ALL' | TransactionType;
 type Draft = Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'>;
@@ -52,44 +55,42 @@ export function TransactionsPage() {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Transaction | null | undefined>(undefined);
   const [pendingUndo, setPendingUndo] = useState<Transaction | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Transaction | null>(null);
   const { toast, showToast } = useFinanceToast();
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    void Promise.all([
+  usePageLoader(async (controller, refreshing) => {
+    await Promise.all([
       financeApi.listCategories(userId, controller.signal),
       financeApi.listWallets(userId, controller.signal),
       financeApi.listTransactions(userId, controller.signal)
-    ]).then(([nextCategories, nextWallets, nextTransactions]) => {
-      setCategories(nextCategories);
-      setWalletList(nextWallets);
-      setTransactions(nextTransactions);
-      void Promise.all([
-        ...nextCategories.map((item) => putLocalRecord({ key: `categories:${item.id}`, ownerUserId: userId, entity: 'categories', id: item.id, value: item, updatedAt: Date.now() })),
-        ...nextWallets.map((item) => putLocalRecord({ key: `wallets:${item.id}`, ownerUserId: userId, entity: 'wallets', id: item.id, value: item, updatedAt: Date.now() })),
-        ...nextTransactions.map((item) => putLocalRecord({ key: `transactions:${item.id}`, ownerUserId: userId, entity: 'transactions', id: item.id, value: item, updatedAt: Date.now() }))
+    ]).then(async ([nextCategories, nextWallets, nextTransactions]) => {
+      const [localCategories, localWallets, localTransactions] = await Promise.all([
+        cacheRemoteList(userId, 'categories', nextCategories, controller.signal),
+        cacheRemoteList(userId, 'wallets', nextWallets, controller.signal),
+        cacheRemoteList(userId, 'transactions', nextTransactions, controller.signal)
       ]);
-      void listLocalRecords<Transaction>(userId, 'transactions').then((records) => {
-        if (controller.signal.aborted) return;
-        setTransactions((remote) => records.reduce((items, record) => {
-          const next = items.filter((item) => item.id !== record.id);
-          return record.deleted ? next : [record.value, ...next];
-        }, remote).sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)));
-      });
-    }).catch(async () => {
       if (controller.signal.aborted) return;
+      setCategories(localCategories); setWalletList(localWallets);
+      setTransactions(localTransactions.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)));
+    }).catch(async (error: unknown) => {
+      if (controller.signal.aborted) return;
+      if (refreshing) throw error;
       try {
         const [savedCategories, savedWallets, savedTransactions] = await Promise.all([
           listLocalRecords<Category>(userId, 'categories'), listLocalRecords<Wallet>(userId, 'wallets'), listLocalRecords<Transaction>(userId, 'transactions')
         ]);
+        if (controller.signal.aborted) return;
         setCategories(savedCategories.map((item) => item.value));
+        if (controller.signal.aborted) return;
         setWalletList(savedWallets.map((item) => item.value));
+        if (controller.signal.aborted) return;
         setTransactions(savedTransactions.filter((item) => !item.deleted).map((item) => item.value));
       } catch { showToast('Không tải được giao dịch. Hãy thử tải lại.'); }
     });
-    return () => { controller.abort(); if (undoTimer.current) clearTimeout(undoTimer.current); };
-  }, [userId, showToast]);
+  }, userId);
+
+  useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
 
   useEffect(() => {
     if (!selectedTransactionId) return;
@@ -142,14 +143,14 @@ export function TransactionsPage() {
   }
 
   async function removeTransaction(transaction: Transaction) {
+    await enqueueLocalMutation({ ownerUserId: userId, entity: 'transactions', operation: 'delete', recordId: transaction.id, payload: { revision: transaction.revision ?? 1 }, value: transaction, deleted: true });
     if (undoTimer.current) clearTimeout(undoTimer.current);
-    try {
-      await enqueueLocalMutation({ ownerUserId: userId, entity: 'transactions', operation: 'delete', recordId: transaction.id, payload: { revision: transaction.revision ?? 1 }, value: transaction, deleted: true });
-      setTransactions((current) => current.filter((item) => item.id !== transaction.id));
-      setPendingUndo(transaction);
-      undoTimer.current = setTimeout(() => setPendingUndo(null), undoDuration);
-      void syncOutbox(userId, session!.csrfToken);
-    } catch { showToast('Không xóa được giao dịch. Hãy thử lại.'); }
+    setTransactions((current) => current.filter((item) => item.id !== transaction.id));
+    // Delete advances the server revision once. Undo must use that revision,
+    // including when both operations are queued offline and sent in order.
+    setPendingUndo({ ...transaction, revision: (transaction.revision ?? 1) + 1 });
+    undoTimer.current = setTimeout(() => setPendingUndo(null), undoDuration);
+    void syncOutbox(userId, session!.csrfToken).catch(() => showToast('Thao tác xóa được giữ trên thiết bị và sẽ thử đồng bộ lại.'));
   }
 
   async function undoDelete() {
@@ -182,9 +183,10 @@ export function TransactionsPage() {
     {walletList.length === 0 && <div className="transaction-notice" role="status">Bạn cần tạo ví trước khi ghi giao dịch. <Link to="/wallets">Quản lý ví</Link></div>}
     {groups.length === 0 ? <div className="account-empty transaction-empty"><span className="account-empty-icon"><CalendarDays aria-hidden="true" /></span><h2>{transactions.length ? 'Không tìm thấy giao dịch' : 'Chưa có giao dịch nào'}</h2><p>{transactions.length ? 'Thử đổi bộ lọc hoặc từ khóa tìm kiếm.' : 'Ghi khoản thu hoặc chi đầu tiên để bắt đầu theo dõi tài chính.'}</p>{transactions.length === 0 && walletList.length > 0 && <button type="button" className="account-primary-button" onClick={() => setEditing(null)}><CirclePlus aria-hidden="true" />Thêm giao dịch</button>}</div> : groups.map((group) => <section className="transaction-group" key={group.heading}>
       <div className="transaction-group-heading"><h2>{group.heading}</h2><span>{group.items.length} giao dịch</span></div>
-      <div className="transaction-list">{group.items.map((item) => <TransactionRow key={item.id} transaction={item} category={categoriesById.get(item.categoryId)} wallet={wallets.get(item.walletId)} onEdit={() => setEditing(item)} onDelete={() => removeTransaction(item)} />)}</div>
+      <div className="transaction-list">{group.items.map((item) => <TransactionRow key={item.id} transaction={item} category={categoriesById.get(item.categoryId)} wallet={wallets.get(item.walletId)} onEdit={() => setEditing(item)} onDelete={() => setPendingDelete(item)} />)}</div>
     </section>)}
     {pendingUndo && <div className="transaction-undo" role="status"><span>Đã xóa giao dịch.</span><button type="button" onClick={undoDelete}><RotateCcw aria-hidden="true" />Hoàn tác</button></div>}
+    {pendingDelete && <DeleteTransactionDialog transaction={pendingDelete} onClose={() => setPendingDelete(null)} onConfirm={() => removeTransaction(pendingDelete)} />}
     {editing !== undefined && <TransactionDialog key={editing?.id ?? 'new'} transaction={editing} categories={categories} wallets={walletList} onClose={() => { setEditing(undefined); if (selectedTransactionId) setSearchParams((current) => { current.delete('transactionId'); return current; }); }} onSave={saveDraft} />}
   </>;
 }
@@ -208,20 +210,14 @@ function TransactionDialog({ transaction, categories, wallets, onClose, onSave }
   const [note, setNote] = useState(transaction?.note ?? '');
   const [tags, setTags] = useState(transaction?.tags.join(', ') ?? '');
   const [success, setSuccess] = useState(false);
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useModalDialog();
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast, showToast } = useFinanceToast();
   const matchingCategories = categories.filter((item) => item.type === type);
 
   useEffect(() => {
-    const element = dialog.current;
-    if (element) {
-      element.setAttribute('autofocus', '');
-      element.showModal();
-    }
     return () => {
       if (closeTimer.current) clearTimeout(closeTimer.current);
-      element?.close();
     };
   }, []);
   useEffect(() => {

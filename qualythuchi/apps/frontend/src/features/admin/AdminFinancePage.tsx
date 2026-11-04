@@ -1,4 +1,6 @@
+import { usePageLoader } from '@/hooks/use-page-loader';
 import { useEffect, useMemo, useState } from 'react';
+import { useModalDialog } from '@/hooks/use-modal-dialog';
 import { ArrowDown, ArrowUp, ChevronLeft, Pencil, Plus, Trash2, Wallet as WalletIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useSearchParams } from 'react-router-dom';
@@ -37,18 +39,19 @@ export function AdminFinancePage() {
   const selectedTransactionId = searchParams.get('transactionId') ?? '';
 
   useEffect(() => { void adminApi.listUsers().then((items) => { setUsers(items); const usersOnly = items.filter((item) => item.role === 'USER'); setOwnerId((current) => usersOnly.some((item) => item.id === current) ? current : usersOnly[0]?.id ?? ''); }).catch(() => setError('Không tải được danh sách User.')); }, []);
-  useEffect(() => {
+  const refresh = usePageLoader(async (controller, refreshing) => {
     if (!ownerId) return;
-    const controller = new AbortController(); setLoading(true); setError('');
-    void Promise.all([financeApi.listTransactions(ownerId, controller.signal), financeApi.listWallets(ownerId, controller.signal), financeApi.listCategories(ownerId, controller.signal), financeApi.getSummary(ownerId, controller.signal), financeApi.listBudgets(ownerId, controller.signal)])
+    if (!refreshing) { setLoading(true); setError(''); }
+    await Promise.all([financeApi.listTransactions(ownerId, controller.signal), financeApi.listWallets(ownerId, controller.signal), financeApi.listCategories(ownerId, controller.signal), financeApi.getSummary(ownerId, controller.signal), financeApi.listBudgets(ownerId, controller.signal)])
       .then(([nextTransactions, nextWallets, nextCategories, summary, nextBudgets]) => {
+        if (controller.signal.aborted) return;
+        setError('');
         setTransactions(nextTransactions); setWallets(nextWallets); setCategories(nextCategories);
         setBudgets(nextBudgets);
         setTotals({ totalBalance: summary.totalBalance, incomeThisMonth: summary.incomeThisMonth, expenseThisMonth: summary.expenseThisMonth });
-      }).catch(() => { if (!controller.signal.aborted) setError('Không tải được dữ liệu tài chính của User đã chọn.'); })
+      }).catch((error: unknown) => { if (refreshing) throw error; if (!controller.signal.aborted) setError('Không tải được dữ liệu tài chính của User đã chọn.'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, [ownerId]);
+  }, ownerId);
 
   useEffect(() => {
     if (!selectedTransactionId || !ownerId || loading) return;
@@ -59,13 +62,6 @@ export function AdminFinancePage() {
   const filteredTransactions = useMemo(() => transactions.filter((item) => `${item.note} ${item.type}`.toLocaleLowerCase('vi').includes(query.trim().toLocaleLowerCase('vi'))), [transactions, query]);
   if (!session) return null;
 
-  async function refresh() {
-    if (!ownerId) return;
-    const [nextTransactions, nextWallets, nextCategories, summary, nextBudgets] = await Promise.all([financeApi.listTransactions(ownerId), financeApi.listWallets(ownerId), financeApi.listCategories(ownerId), financeApi.getSummary(ownerId), financeApi.listBudgets(ownerId)]);
-    setTransactions(nextTransactions); setWallets(nextWallets); setCategories(nextCategories);
-    setBudgets(nextBudgets);
-    setTotals({ totalBalance: summary.totalBalance, incomeThisMonth: summary.incomeThisMonth, expenseThisMonth: summary.expenseThisMonth });
-  }
   function closeTransactionEditor() {
     setEditingTransaction(undefined);
     if (selectedTransactionId) setSearchParams((current) => { current.delete('transactionId'); return current; }, { replace: true });
@@ -109,6 +105,7 @@ function TransactionRow({ item, walletName, onEdit, onDelete }: { item: ApiTrans
 }
 
 function TransactionDialog({ ownerId, item, wallets, categories, csrf, onClose, onSaved }: { ownerId: string; item: ApiTransaction | null; wallets: ApiWallet[]; categories: ApiCategory[]; csrf: string; onClose: () => void; onSaved: () => Promise<void> }) {
+  const dialog = useModalDialog();
   const [type, setType] = useState<TransactionType>(item?.type ?? 'EXPENSE');
   const [amount, setAmount] = useState(item ? String(item.amount).replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '');
   const [walletId, setWalletId] = useState(item?.walletId ?? wallets[0]?.id ?? '');
@@ -135,10 +132,11 @@ function TransactionDialog({ ownerId, item, wallets, categories, csrf, onClose, 
     } catch { setError('Không lưu được. Có thể bản ghi đã được sửa ở thiết bị khác.'); }
     finally { setBusy(false); }
   }
-  return <dialog open className="admin-dialog admin-finance-dialog"><button className="admin-dialog-close" type="button" onClick={onClose} aria-label="Đóng">×</button><h2>{item ? 'Sửa giao dịch' : 'Thêm giao dịch'}</h2><form className="admin-form" onSubmit={(event) => void submit(event)}><label>Loại<select value={type} onChange={(event) => setType(event.target.value as TransactionType)}><option value="EXPENSE">Chi</option><option value="INCOME">Thu</option></select></label><label>Số tiền<VndInput value={amount} onChange={setAmount} placeholder="0" /></label><label>Ví<select value={walletId} onChange={(event) => setWalletId(event.target.value)}>{wallets.map((wallet) => <option value={wallet.id} key={wallet.id}>{wallet.name}</option>)}</select></label><label>Danh mục<select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>{matching.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}</select></label><label>Ngày giờ<input type="datetime-local" value={occurredAt} onChange={(event) => setOccurredAt(event.target.value)} /></label><label>Ghi chú<input value={note} maxLength={200} onChange={(event) => setNote(event.target.value)} /></label><label>Nhãn<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="Cách nhau bằng dấu phẩy" /></label>{error && <p className="admin-alert" role="alert">{error}</p>}<div className="admin-form-actions"><button type="button" className="admin-secondary-button" onClick={onClose}>Hủy</button><button className="admin-primary-button" disabled={busy}>{busy ? 'Đang lưu…' : 'Lưu giao dịch'}</button></div></form></dialog>;
+  return <dialog ref={dialog} className="admin-dialog admin-finance-dialog" onCancel={onClose}><button className="admin-dialog-close" type="button" onClick={onClose} aria-label="Đóng">×</button><h2>{item ? 'Sửa giao dịch' : 'Thêm giao dịch'}</h2><form className="admin-form" onSubmit={(event) => void submit(event)}><label>Loại<select value={type} onChange={(event) => setType(event.target.value as TransactionType)}><option value="EXPENSE">Chi</option><option value="INCOME">Thu</option></select></label><label>Số tiền<VndInput value={amount} onChange={setAmount} placeholder="0" /></label><label>Ví<select value={walletId} onChange={(event) => setWalletId(event.target.value)}>{wallets.map((wallet) => <option value={wallet.id} key={wallet.id}>{wallet.name}</option>)}</select></label><label>Danh mục<select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>{matching.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}</select></label><label>Ngày giờ<input type="datetime-local" value={occurredAt} onChange={(event) => setOccurredAt(event.target.value)} /></label><label>Ghi chú<input value={note} maxLength={200} onChange={(event) => setNote(event.target.value)} /></label><label>Nhãn<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="Cách nhau bằng dấu phẩy" /></label>{error && <p className="admin-alert" role="alert">{error}</p>}<div className="admin-form-actions"><button type="button" className="admin-secondary-button" onClick={onClose}>Hủy</button><button className="admin-primary-button" disabled={busy}>{busy ? 'Đang lưu…' : 'Lưu giao dịch'}</button></div></form></dialog>;
 }
 
 function WalletDialog({ ownerId, item, csrf, onClose, onSaved }: { ownerId: string; item: ApiWallet | null; csrf: string; onClose: () => void; onSaved: () => Promise<void> }) {
+  const dialog = useModalDialog();
   const [name, setName] = useState(item?.name ?? ''); const [type, setType] = useState<ApiWallet['type']>(item?.type ?? 'CASH');
   const [openingBalance, setOpeningBalance] = useState(String(item?.openingBalance ?? 0)); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -153,10 +151,11 @@ function WalletDialog({ ownerId, item, csrf, onClose, onSaved }: { ownerId: stri
     } catch { setError('Không lưu được ví. Hãy kiểm tra tên ví và thử lại.'); }
     finally { setBusy(false); }
   }
-  return <dialog open className="admin-dialog admin-finance-dialog"><button className="admin-dialog-close" type="button" onClick={onClose} aria-label="Đóng">×</button><h2>{item ? 'Sửa ví' : 'Thêm ví'}</h2><form className="admin-form" onSubmit={(event) => void submit(event)}><label>Tên ví<input value={name} onChange={(event) => setName(event.target.value)} maxLength={40} required /></label><label>Loại ví<select value={type} onChange={(event) => setType(event.target.value as ApiWallet['type'])}><option value="CASH">Tiền mặt</option><option value="BANK">Ngân hàng</option><option value="E_WALLET">Ví điện tử</option><option value="OTHER">Khác</option></select></label><label>Số dư ban đầu<VndInput value={openingBalance} onChange={setOpeningBalance} allowNegative /></label>{error && <p className="admin-alert" role="alert">{error}</p>}<div className="admin-form-actions"><button type="button" className="admin-secondary-button" onClick={onClose}>Hủy</button><button className="admin-primary-button" disabled={busy}>{busy ? 'Đang lưu…' : 'Lưu ví'}</button></div></form></dialog>;
+  return <dialog ref={dialog} className="admin-dialog admin-finance-dialog" onCancel={onClose}><button className="admin-dialog-close" type="button" onClick={onClose} aria-label="Đóng">×</button><h2>{item ? 'Sửa ví' : 'Thêm ví'}</h2><form className="admin-form" onSubmit={(event) => void submit(event)}><label>Tên ví<input value={name} onChange={(event) => setName(event.target.value)} maxLength={40} required /></label><label>Loại ví<select value={type} onChange={(event) => setType(event.target.value as ApiWallet['type'])}><option value="CASH">Tiền mặt</option><option value="BANK">Ngân hàng</option><option value="E_WALLET">Ví điện tử</option><option value="OTHER">Khác</option></select></label><label>Số dư ban đầu<VndInput value={openingBalance} onChange={setOpeningBalance} allowNegative /></label>{error && <p className="admin-alert" role="alert">{error}</p>}<div className="admin-form-actions"><button type="button" className="admin-secondary-button" onClick={onClose}>Hủy</button><button className="admin-primary-button" disabled={busy}>{busy ? 'Đang lưu…' : 'Lưu ví'}</button></div></form></dialog>;
 }
 
 function BudgetDialog({ ownerId, item, categories, csrf, onClose, onSaved }: { ownerId: string; item: ApiBudget | null; categories: ApiCategory[]; csrf: string; onClose: () => void; onSaved: () => Promise<void> }) {
+  const dialog = useModalDialog();
   const month = nowLocal().slice(0, 7);
   const [period, setPeriod] = useState(item?.period ?? month);
   const [categoryId, setCategoryId] = useState(item?.categoryId ?? '');
@@ -174,5 +173,5 @@ function BudgetDialog({ ownerId, item, categories, csrf, onClose, onSaved }: { o
     } catch { setError('Không lưu được. Có thể ngân sách cùng kỳ và phạm vi đã tồn tại.'); }
     finally { setBusy(false); }
   }
-  return <dialog open className="admin-dialog admin-finance-dialog"><button className="admin-dialog-close" type="button" onClick={onClose} aria-label="Đóng">×</button><h2>{item ? 'Sửa ngân sách' : 'Thêm ngân sách'}</h2><form className="admin-form" onSubmit={(event) => void submit(event)}><label>Tháng<input type="month" value={period} onChange={(event) => setPeriod(event.target.value)} required /></label><label>Phạm vi<select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="">Tổng ngân sách</option>{categories.filter((category) => category.type === 'EXPENSE').map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><label>Số tiền<VndInput value={amount} onChange={setAmount} placeholder="0" /></label>{error && <p className="admin-alert" role="alert">{error}</p>}<div className="admin-form-actions"><button type="button" className="admin-secondary-button" onClick={onClose}>Hủy</button><button className="admin-primary-button" disabled={busy}>{busy ? 'Đang lưu…' : 'Lưu ngân sách'}</button></div></form></dialog>;
+  return <dialog ref={dialog} className="admin-dialog admin-finance-dialog" onCancel={onClose}><button className="admin-dialog-close" type="button" onClick={onClose} aria-label="Đóng">×</button><h2>{item ? 'Sửa ngân sách' : 'Thêm ngân sách'}</h2><form className="admin-form" onSubmit={(event) => void submit(event)}><label>Tháng<input type="month" value={period} onChange={(event) => setPeriod(event.target.value)} required /></label><label>Phạm vi<select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="">Tổng ngân sách</option>{categories.filter((category) => category.type === 'EXPENSE').map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><label>Số tiền<VndInput value={amount} onChange={setAmount} placeholder="0" /></label>{error && <p className="admin-alert" role="alert">{error}</p>}<div className="admin-form-actions"><button type="button" className="admin-secondary-button" onClick={onClose}>Hủy</button><button className="admin-primary-button" disabled={busy}>{busy ? 'Đang lưu…' : 'Lưu ngân sách'}</button></div></form></dialog>;
 }

@@ -15,14 +15,14 @@ export async function syncOutbox(ownerUserId: string, csrfToken: string): Promis
       if (item.status === 'synced') continue;
       try {
         await setOutboxItem(ownerUserId, { ...item, status: 'syncing', attempts: item.attempts + 1, updatedAt: Date.now(), error: undefined });
-        notifySyncChange();
+        notifySyncChange([item.entity === 'transfers' ? 'transfer' : 'transaction']);
         await send(item, csrfToken);
         await setOutboxItem(ownerUserId, { ...item, status: 'synced', attempts: item.attempts + 1, updatedAt: Date.now(), error: undefined });
-        notifySyncChange();
+        notifySyncChange([item.entity === 'transfers' ? 'transfer' : 'transaction']);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Không đồng bộ được dữ liệu.';
         await setOutboxItem(ownerUserId, { ...item, status: 'error', attempts: item.attempts + 1, updatedAt: Date.now(), error: message });
-        notifySyncChange();
+        notifySyncChange([item.entity === 'transfers' ? 'transfer' : 'transaction']);
         // Do not pull after a transport failure: the server may have committed
         // the request while its response was lost. Retry the same key first.
         shouldPull = error instanceof ApiError && error.serverCode === 'REVISION_CONFLICT';
@@ -42,7 +42,7 @@ export async function pullChanges(ownerUserId: string): Promise<void> {
     await applyRemoteChanges(ownerUserId, changes, page.cursor);
     cursor = page.cursor;
     hasMore = page.hasMore;
-    notifySyncChange();
+    if (changes.length) notifySyncChange(changes.map(change => change.entity));
   }
 }
 
@@ -76,6 +76,6 @@ async function send(item: OutboxItem, csrfToken: string): Promise<void> {
   await financeApi.pushSync(item.ownerUserId, `outbox-${item.id}`, [change], csrfToken);
 }
 
-export function notifySyncChange() {
-  if (typeof window !== 'undefined') window.dispatchEvent(new Event('thu-chi-sync-change'));
+export function notifySyncChange(entities?: string[]) {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('thu-chi-sync-change', { detail: { entities } }));
 }

@@ -1,0 +1,16 @@
+# Hot reload while keeping the existing backend and d1-data volume.
+# docker compose -f compose.yaml -f compose.dev.yaml up -d --build --wait frontend backend
+services:
+  frontend:
+    build:
+      target: frontend-dev
+    volumes:
+      - ./apps/frontend/src:/app/apps/frontend/src:ro
+      - ./apps/frontend/public:/app/apps/frontend/public:ro
+      - ./apps/frontend/index.html:/app/apps/frontend/index.html:ro
+      - ./apps/frontend/vite.config.ts:/app/apps/frontend/vite.config.ts:ro
+      - ./apps/frontend/dev-pwa-recovery.ts:/app/apps/frontend/dev-pwa-recovery.ts:ro
+      - ./apps/frontend/pwa-manifest.ts:/app/apps/frontend/pwa-manifest.ts:ro
+      - ./packages/contracts/src:/app/packages/contracts/src:ro
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:5173').then(async r => { if (!r.ok || !(await r.text()).includes('/@vite/client')) process.exit(1); }).catch(() => process.exit(1));"]

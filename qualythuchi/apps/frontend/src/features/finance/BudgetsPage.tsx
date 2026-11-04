@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { usePageLoader } from '@/hooks/use-page-loader';
+import { useEffect, useMemo, useState } from 'react';
+import { useModalDialog } from '@/hooks/use-modal-dialog';
 import { ChevronLeft, ChevronRight, CirclePlus, Pencil, ReceiptText, Trash2, Wallet, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
@@ -8,7 +10,7 @@ import { formatVnd, parseVndInteger } from './finance-data';
 import { formatVndInput } from './finance-rules';
 import { VndInput } from './VndInput';
 import { financeApi, type ApiBudget, type ApiCategory, type ApiTransaction } from '@/infrastructure/api/finance';
-import { listLocalRecords, putLocalRecord } from '@/infrastructure/sync/sync-storage';
+import { cacheRemoteList, listLocalRecords } from '@/infrastructure/sync/sync-storage';
 import { localMonthKey, summarizeBudgetMonth, type BudgetCategoryUsage } from './budgets-data';
 import './finance.css';
 import './budgets.css';
@@ -42,33 +44,36 @@ export function BudgetsPage() {
   const [editing, setEditing] = useState<ApiBudget | null | undefined>(undefined);
   const { toast, showToast } = useFinanceToast();
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true); setError(false);
-    void Promise.all([
+  usePageLoader(async (controller, refreshing) => {
+    if (!refreshing) setLoading(true); if (!refreshing) setError(false);
+    await Promise.all([
       financeApi.listBudgets(userId, controller.signal),
       financeApi.listCategories(userId, controller.signal),
       financeApi.listTransactions(userId, controller.signal)
-    ]).then(([nextBudgets, nextCategories, nextTransactions]) => {
-      setBudgets(nextBudgets); setCategories(nextCategories); setTransactions(nextTransactions);
-      void Promise.all([
-        ...nextBudgets.map((item) => putLocalRecord({ key: `budgets:${item.id}`, ownerUserId: userId, entity: 'budgets', id: item.id, value: item, updatedAt: item.updatedAt })),
-        ...nextCategories.map((item) => putLocalRecord({ key: `categories:${item.id}`, ownerUserId: userId, entity: 'categories', id: item.id, value: item, updatedAt: Date.now() })),
-        ...nextTransactions.map((item) => putLocalRecord({ key: `transactions:${item.id}`, ownerUserId: userId, entity: 'transactions', id: item.id, value: item, updatedAt: Date.now() }))
-      ]).catch(() => undefined);
-    }).catch(async () => {
+    ]).then(async ([nextBudgets, nextCategories, nextTransactions]) => {
+      const [localBudgets, localCategories, localTransactions] = await Promise.all([
+        cacheRemoteList(userId, 'budgets', nextBudgets, controller.signal),
+        cacheRemoteList(userId, 'categories', nextCategories, controller.signal),
+        cacheRemoteList(userId, 'transactions', nextTransactions, controller.signal)
+      ]);
       if (controller.signal.aborted) return;
+      setBudgets(localBudgets); setCategories(localCategories); setTransactions(localTransactions); setError(false);
+    }).catch(async (error: unknown) => {
+      if (controller.signal.aborted) return;
+      if (refreshing) throw error;
       try {
         const [budgetRecords, categoryRecords, transactionRecords] = await Promise.all([
           listLocalRecords<ApiBudget>(userId, 'budgets'), listLocalRecords<ApiCategory>(userId, 'categories'), listLocalRecords<ApiTransaction>(userId, 'transactions')
         ]);
+        if (controller.signal.aborted) return;
         setBudgets(budgetRecords.filter((item) => !item.deleted).map((item) => item.value));
+        if (controller.signal.aborted) return;
         setCategories(categoryRecords.filter((item) => !item.deleted).map((item) => item.value));
+        if (controller.signal.aborted) return;
         setTransactions(transactionRecords.filter((item) => !item.deleted && !item.value.deletedAt).map((item) => item.value));
       } catch { setError(true); }
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, [userId, period]);
+  }, userId);
 
   useEffect(() => {
     async function refreshSyncedData() {
@@ -119,12 +124,12 @@ export function BudgetsPage() {
         <div className="budget-overview-numbers"><div><small>Tổng ngân sách</small><strong>{formatVnd(summary.budgetTotal)}</strong></div><div><small>Đã chi</small><strong className="budget-spent">{formatVnd(summary.spent)}</strong></div><div><small>{summary.remaining >= 0 ? 'Còn lại' : 'Vượt ngân sách'}</small><strong className={summary.remaining < 0 ? 'budget-over' : 'budget-remaining'}>{formatVnd(summary.remaining)}</strong></div></div>
         <div className="budget-progress-meta"><span>{summary.budgetTotal ? `${summary.percentUsed.toFixed(summary.percentUsed % 1 ? 1 : 0)}% đã sử dụng` : 'Chưa có ngân sách cho tháng này'}</span>{summary.budgetTotal > 0 && <span>{formatVnd(summary.spent)} / {formatVnd(summary.budgetTotal)}</span>}</div>
         <div className={`budget-progress-track ${summary.percentUsed >= 100 ? 'budget-progress-over' : ''}`} role="progressbar" aria-label="Tỷ lệ sử dụng ngân sách tháng" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, Math.max(0, summary.percentUsed))}><i style={{ width: `${Math.min(100, Math.max(0, summary.percentUsed))}%` }} /></div>
-        {totalBudget && <Link className="budget-related-link" to={transactionHref()}><ReceiptText />Xem các giao dịch tháng này</Link>}
+        {totalBudget && <div className="budget-overview-actions"><button type="button" className="budget-row-action budget-edit-action" onClick={() => setEditing(totalBudget)}><Pencil />Sửa ngân sách tổng</button><Link className="budget-related-link" to={transactionHref()}><ReceiptText />Xem các giao dịch tháng này</Link></div>}
       </section>
 
       <section className="account-section budget-category-section"><div className="account-section-title"><div><h2>Chi tiêu theo danh mục</h2><p>Tiến độ và số tiền còn lại từng khoản</p></div><button className="budget-add-inline" type="button" onClick={() => setEditing(null)}><CirclePlus />Thêm</button></div>
         {summary.categories.length === 0 ? <div className="account-empty budget-empty"><span className="account-empty-icon"><Wallet /></span><h2>Chưa có ngân sách cho tháng {period}</h2><p>Tạo ngân sách tổng hoặc đặt giới hạn cho một danh mục chi.</p><button type="button" className="account-primary-button" onClick={() => setEditing(null)}><CirclePlus />Tạo ngân sách</button></div> : <div className="budget-category-list">{summary.categories.map((usage) => <BudgetCategoryRow key={usage.budget.id} usage={usage} href={transactionHref(usage.budget.categoryId)} onEdit={() => setEditing(usage.budget)} onDelete={() => void removeBudget(usage.budget)} />)}</div>}
-        {totalBudget && <article className="budget-total-row"><span className="budget-icon"><Wallet /></span><div className="budget-row-copy"><strong>Ngân sách tổng</strong><small>{formatVnd(totalBudget.amount)} · {period}</small></div><Link to={transactionHref()} aria-label="Xem giao dịch thuộc ngân sách tổng"><ReceiptText /></Link><button type="button" aria-label="Sửa ngân sách tổng" onClick={() => setEditing(totalBudget)}><Pencil /></button><button type="button" aria-label="Xóa ngân sách tổng" onClick={() => void removeBudget(totalBudget)}><Trash2 /></button></article>}
+        {totalBudget && <article className="budget-total-row"><span className="budget-icon"><Wallet /></span><div className="budget-row-copy"><strong>Ngân sách tổng</strong><small>{formatVnd(totalBudget.amount)} · {period}</small></div><div className="budget-row-actions"><button type="button" className="budget-row-action budget-edit-action" aria-label="Sửa ngân sách tổng" onClick={() => setEditing(totalBudget)}><Pencil />Sửa</button><Link className="budget-row-action" to={transactionHref()} aria-label="Xem giao dịch thuộc ngân sách tổng"><ReceiptText /></Link><button type="button" className="budget-row-action" aria-label="Xóa ngân sách tổng" onClick={() => void removeBudget(totalBudget)}><Trash2 /></button></div></article>}
       </section>
     </>}
     {editing !== undefined && <BudgetDialog key={editing?.id ?? 'new'} item={editing} period={period} categories={categories} onClose={() => setEditing(undefined)} onSave={async (input) => {
@@ -142,7 +147,7 @@ function BudgetCategoryRow({ usage, href, onEdit, onDelete }: { usage: BudgetCat
     <span className="budget-icon"><Wallet /></span>
     <div className="budget-row-copy"><strong>{budget.categoryName ?? 'Danh mục'}</strong><small>Ngân sách {formatVnd(budget.amount)}</small><div className={`budget-progress-track budget-row-progress ${percentage >= 100 ? 'budget-progress-over' : ''}`} role="progressbar" aria-label={`${budget.categoryName ?? 'Danh mục'}: ${Math.round(percentage)}%`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, Math.max(0, percentage))}><i style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }} /></div></div>
     <div className="budget-row-amount"><strong>{formatVnd(usage.spent)} <span>/ {formatVnd(budget.amount)}</span></strong><small className={usage.remaining < 0 ? 'budget-over' : ''}>{usage.remaining < 0 ? `Vượt ${formatVnd(Math.abs(usage.remaining))}` : `Còn ${formatVnd(usage.remaining)}`} · {Math.round(percentage)}%</small></div>
-    <Link to={href} className="budget-row-action" aria-label={`Xem giao dịch ${budget.categoryName ?? ''}`}><ReceiptText /></Link><button type="button" className="budget-row-action" aria-label={`Sửa ngân sách ${budget.categoryName ?? ''}`} onClick={onEdit}><Pencil /></button><button type="button" className="budget-row-action" aria-label={`Xóa ngân sách ${budget.categoryName ?? ''}`} onClick={onDelete}><Trash2 /></button>
+    <div className="budget-row-actions"><button type="button" className="budget-row-action budget-edit-action" aria-label={`Sửa ngân sách ${budget.categoryName ?? ''}`} onClick={onEdit}><Pencil />Sửa</button><Link to={href} className="budget-row-action" aria-label={`Xem giao dịch ${budget.categoryName ?? ''}`}><ReceiptText /></Link><button type="button" className="budget-row-action" aria-label={`Xóa ngân sách ${budget.categoryName ?? ''}`} onClick={onDelete}><Trash2 /></button></div>
   </article>;
 }
 
@@ -152,8 +157,7 @@ function BudgetDialog({ item, period, categories, onClose, onSave }: { item: Api
   const [amount, setAmount] = useState(item ? formatVndInput(String(item.amount)) : '');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => { const element = dialog.current; element?.showModal(); return () => element?.close(); }, []);
+  const dialog = useModalDialog();
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

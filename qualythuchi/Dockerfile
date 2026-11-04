@@ -16,15 +16,18 @@ COPY packages/contracts/package.json ./packages/contracts/package.json
 # Use the lockfile when available; the initial scaffold has no lockfile yet.
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
-COPY --chown=node:node . .
+COPY --chown=node:node --chmod=755 . .
 # Windows build contexts can copy directories with read-only permission bits.
 # Ownership alone does not let the node user create Vite/Workbox output files.
-RUN mkdir -p /app/apps/backend/.wrangler /app/apps/frontend/dist \
-    && chown -R node:node /app \
-    && chmod -R u+rwX /app
+RUN mkdir -p /app/apps/backend/.wrangler /app/apps/frontend/dist /app/node_modules/.vite \
+    && chown node:node /app/apps/backend/.wrangler /app/apps/frontend/dist /app/node_modules/.vite
 
 ENV WRANGLER_SEND_METRICS=false
 USER node
+
+FROM base AS frontend-dev
+EXPOSE 5173
+CMD ["npm", "run", "dev", "--workspace", "@thu-chi/frontend", "--", "--host", "0.0.0.0", "--configLoader", "runner"]
 
 FROM base AS frontend
 ARG VITE_API_BASE_URL=""

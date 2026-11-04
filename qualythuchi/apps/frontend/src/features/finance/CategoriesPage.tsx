@@ -1,4 +1,6 @@
+import { usePageLoader } from '@/hooks/use-page-loader';
 import { useEffect, useRef, useState } from 'react';
+import { useModalDialog } from '@/hooks/use-modal-dialog';
 import type { FormEvent } from 'react';
 import { ArrowDown, ArrowUp, ChevronLeft, Pencil, Plus, Tag, Trash2, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -10,7 +12,7 @@ import { FinanceToast } from './FinanceToast';
 import { useFinanceToast } from './use-finance-toast';
 import { financeApi } from '@/infrastructure/api/finance';
 import type { ApiCategory } from '@/infrastructure/api/finance';
-import { listLocalRecords, putLocalRecord } from '@/infrastructure/sync/sync-storage';
+import { cacheRemoteList, listLocalRecords } from '@/infrastructure/sync/sync-storage';
 import './finance.css';
 
 const categoryIconColors = ['category-icon-orange', 'category-icon-blue', 'category-icon-violet', 'category-icon-teal', 'category-icon-pink', 'category-icon-cyan', 'category-icon-amber', 'category-icon-gray'];
@@ -22,18 +24,17 @@ export function CategoriesPage() {
   const [type, setType] = useState<CategoryType>('EXPENSE');
   const [editing, setEditing] = useState<Category | null>(null);
   const { toast, showToast } = useFinanceToast();
-  useEffect(() => {
-    const controller = new AbortController();
-    void financeApi.listCategories(userId, controller.signal).then(async (items) => {
-      setAllCategories(items);
-      await Promise.all(items.map((item) => putLocalRecord({ key: `categories:${item.id}`, ownerUserId: userId, entity: 'categories', id: item.id, value: item, updatedAt: Date.now() })));
-    }).catch(async () => {
+  usePageLoader(async (controller, refreshing) => {
+    await financeApi.listCategories(userId, controller.signal).then(async (items) => {
+      const local = await cacheRemoteList(userId, 'categories', items, controller.signal);
+      if (!controller.signal.aborted) setAllCategories(local);
+    }).catch(async (error: unknown) => {
       if (controller.signal.aborted) return;
-      try { setAllCategories((await listLocalRecords<ApiCategory>(userId, 'categories')).map((item) => item.value)); }
+      if (refreshing) throw error;
+      try { const records = await listLocalRecords<ApiCategory>(userId, 'categories'); if (!controller.signal.aborted) setAllCategories(records.map((item) => item.value)); }
       catch { showToast('Không tải được danh mục. Hãy thử kết nối lại.'); }
     });
-    return () => controller.abort();
-  }, [userId, showToast]);
+  }, userId);
   if (!session) return null;
   const categories = allCategories.filter((category) => category.type === type);
   const isExpense = type === 'EXPENSE';
@@ -76,12 +77,10 @@ export function CategoriesPage() {
 function CategoryDialog({ category, type, categories, onClose, onSave }: { category: Category | null; type: CategoryType; categories: Category[]; onClose: () => void; onSave: (category: Category) => Promise<void> }) {
   const [name, setName] = useState(category?.name ?? '');
   const { toast, showToast } = useFinanceToast();
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useModalDialog();
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    const element = dialog.current;
-    element?.showModal();
-    return () => { if (closeTimer.current) clearTimeout(closeTimer.current); element?.close(); };
+    return () => { if (closeTimer.current) clearTimeout(closeTimer.current); };
   }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {

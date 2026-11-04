@@ -1,3 +1,4 @@
+import { usePageLoader } from '@/hooks/use-page-loader';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowRight, ArrowUp, BarChart3, CalendarDays, ChevronLeft, CircleHelp, LineChart, PieChart, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -79,24 +80,20 @@ export function ReportsPage() {
     return () => { active = false; };
   }, [isAdmin, userId]);
 
-  useEffect(() => {
+  usePageLoader(async (controller, refreshing) => {
     if (!ownerId) return;
-    const controller = new AbortController();
-    void Promise.all([financeApi.listCategories(ownerId, controller.signal), financeApi.listWallets(ownerId, controller.signal)])
-      .then(([nextCategories, nextWallets]) => { setCategories(nextCategories); setWallets(nextWallets); })
-      .catch(() => { if (!controller.signal.aborted) setError('Không tải được danh mục và ví.'); });
-    return () => controller.abort();
-  }, [ownerId]);
+    await Promise.all([financeApi.listCategories(ownerId, controller.signal), financeApi.listWallets(ownerId, controller.signal)])
+      .then(([nextCategories, nextWallets]) => { if (controller.signal.aborted) return; setCategories(nextCategories); setWallets(nextWallets); })
+      .catch((error: unknown) => { if (controller.signal.aborted) return; if (refreshing) throw error; if (!controller.signal.aborted) setError('Không tải được danh mục và ví.'); });
+  }, `options:${ownerId}`);
 
-  useEffect(() => {
+  usePageLoader(async (controller, refreshing) => {
     if (!ownerId) return;
-    const controller = new AbortController();
-    setBusy(true); setError('');
-    void financeApi.getReport(ownerId, { ...range, timezone: timezone(), bucket, categoryId: categoryId || undefined, walletId: walletId || undefined }, controller.signal)
-      .then(setReport).catch(() => { if (!controller.signal.aborted) setError('Không tải được báo cáo. Hãy kiểm tra khoảng ngày và thử lại.'); })
+    if (!refreshing) { setBusy(true); setError(''); }
+    await financeApi.getReport(ownerId, { ...range, timezone: timezone(), bucket, categoryId: categoryId || undefined, walletId: walletId || undefined }, controller.signal)
+      .then((value) => { if (!controller.signal.aborted) { setReport(value); setError(''); } }).catch((error: unknown) => { if (controller.signal.aborted) return; if (refreshing) throw error; if (!controller.signal.aborted) setError('Không tải được báo cáo. Hãy kiểm tra khoảng ngày và thử lại.'); })
       .finally(() => { if (!controller.signal.aborted) setBusy(false); });
-    return () => controller.abort();
-  }, [ownerId, range, bucket, categoryId, walletId]);
+  }, JSON.stringify([ownerId, range, bucket, categoryId, walletId]));
 
   const expenseCategories = useMemo(() => report?.categories.filter((item) => item.type === 'EXPENSE').sort((a, b) => b.amount - a.amount) ?? [], [report]);
   const incomeCategories = useMemo(() => report?.categories.filter((item) => item.type === 'INCOME').sort((a, b) => b.amount - a.amount) ?? [], [report]);

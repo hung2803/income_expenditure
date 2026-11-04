@@ -1,3 +1,4 @@
+import { usePageLoader } from '@/hooks/use-page-loader';
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Filter, Search, SlidersHorizontal } from 'lucide-react';
@@ -86,28 +87,26 @@ export function AdvancedSearchPage() {
     return () => { active = false; };
   }, [isAdmin, userId]);
 
-  useEffect(() => {
+  usePageLoader(async (controller, refreshing) => {
     if (!ownerId) return;
-    const controller = new AbortController();
-    void Promise.all([financeApi.listCategories(ownerId, controller.signal), financeApi.listWallets(ownerId, controller.signal)])
-      .then(([nextCategories, nextWallets]) => { setCategories(nextCategories); setWallets(nextWallets); })
-      .catch(() => { if (!controller.signal.aborted) setError('Không tải được danh mục và ví.'); });
-    return () => controller.abort();
-  }, [ownerId]);
+    await Promise.all([financeApi.listCategories(ownerId, controller.signal), financeApi.listWallets(ownerId, controller.signal)])
+      .then(([nextCategories, nextWallets]) => { if (controller.signal.aborted) return; setCategories(nextCategories); setWallets(nextWallets); })
+      .catch((error: unknown) => { if (controller.signal.aborted) return; if (refreshing) throw error; if (!controller.signal.aborted) setError('Không tải được danh mục và ví.'); });
+  }, `options:${ownerId}`);
 
-  useEffect(() => {
+  usePageLoader(async (controller, refreshing) => {
     if (!ownerId || !session) return;
-    const controller = new AbortController();
     const query = queryFromDraft(applied, page);
-    setBusy(true); setError('');
-    void financeApi.searchTransactions(ownerId, query, controller.signal)
-      .then(setResult).catch(() => { if (!controller.signal.aborted) setError('Không tìm được giao dịch. Hãy kiểm tra bộ lọc và thử lại.'); })
+    if (!refreshing) { setBusy(true); setError(''); }
+    await financeApi.searchTransactions(ownerId, query, controller.signal)
+      .then((value) => { if (!controller.signal.aborted) { setResult(value); setError(''); } }).catch((error: unknown) => { if (controller.signal.aborted) return; if (refreshing) throw error; if (!controller.signal.aborted) setError('Không tìm được giao dịch. Hãy kiểm tra bộ lọc và thử lại.'); })
       .finally(() => { if (!controller.signal.aborted) setBusy(false); });
-    const params = toParams(query);
-    if (isAdmin) params.set('ownerUserId', ownerId);
-    setSearchParams(params, { replace: true });
-    return () => controller.abort();
-  }, [ownerId, applied, page, session, isAdmin, setSearchParams]);
+    if (!controller.signal.aborted && !refreshing) {
+      const params = toParams(query);
+      if (isAdmin) params.set('ownerUserId', ownerId);
+      setSearchParams(params, { replace: true });
+    }
+  }, JSON.stringify([ownerId, applied, page, isAdmin]));
 
   const categoriesById = useMemo(() => new Map(categories.map((item) => [item.id, item])), [categories]);
   const walletsById = useMemo(() => new Map(wallets.map((item) => [item.id, item])), [wallets]);

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { usePageLoader } from '@/hooks/use-page-loader';
+import { useEffect, useState } from 'react';
 import { Bell, BellOff, CheckCheck, ChevronLeft, Clock3, Dot, Smartphone } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
@@ -22,20 +23,20 @@ export function NotificationsPage() {
   const [message, setMessage] = useState('');
   const userId = session?.user.id;
   const csrf = session?.csrfToken;
-  const refresh = useCallback(async () => {
+  const refresh = usePageLoader(async (controller, refreshing) => {
     if (!userId) return;
     try {
-      const result = await http.get<InboxResponse>(`/api/users/${encodeURIComponent(userId)}/notifications`);
+      const result = await http.get<InboxResponse>(`/api/users/${encodeURIComponent(userId)}/notifications`, { signal: controller.signal });
+      if (controller.signal.aborted) return;
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
       if (result.settings.pushEnabled && result.settings.timezone !== timezone && csrf) {
         await http.put(`/api/users/${encodeURIComponent(userId)}/notifications/settings`, { timezone, pushEnabled: true }, { csrfToken: csrf });
         result.settings.timezone = timezone;
       }
-      setData(result);
+      if (!controller.signal.aborted) setData(result);
     }
-    catch { setMessage('Không tải được thông báo. Hãy kiểm tra kết nối và thử tải lại.'); }
-  }, [csrf, userId]);
-  useEffect(() => { void refresh(); }, [refresh]);
+    catch (error) { if (controller.signal.aborted) return; if (refreshing) throw error; setMessage('Không tải được thông báo. Hãy kiểm tra kết nối và thử tải lại.'); }
+  }, userId ?? '');
   useEffect(() => {
     let active = true;
     if ('serviceWorker' in navigator) void navigator.serviceWorker.ready.then((registration) => registration.pushManager.getSubscription())

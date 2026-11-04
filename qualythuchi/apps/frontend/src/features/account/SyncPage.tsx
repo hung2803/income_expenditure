@@ -6,6 +6,7 @@ import { useNetworkStatus } from '../../hooks/use-network-status';
 import { syncOutbox, notifySyncChange } from '../../infrastructure/sync/sync-engine';
 import { getSyncSnapshot } from '../../infrastructure/sync/sync-storage';
 import type { SyncSnapshot } from '../../infrastructure/sync/sync-storage';
+import { usePageLoader } from '@/hooks/use-page-loader';
 
 const empty: SyncSnapshot = { pending: 0, syncing: 0, error: 0, lastSyncedAt: null, lastError: null };
 
@@ -25,13 +26,15 @@ export function SyncPage() {
     if (!ownerId) return;
     setSnapshot(await getSyncSnapshot(ownerId));
   }, [ownerId]);
+  usePageLoader(async () => {
+    if (session) await syncOutbox(ownerId, session.csrfToken);
+    await refresh();
+  }, ownerId);
 
   useEffect(() => {
-    void refresh();
     const changed = () => { void refresh(); };
     window.addEventListener('thu-chi-sync-change', changed);
-    const timer = window.setInterval(changed, 5_000);
-    return () => { window.removeEventListener('thu-chi-sync-change', changed); window.clearInterval(timer); };
+    return () => { window.removeEventListener('thu-chi-sync-change', changed); };
   }, [refresh]);
 
   if (!session) return null;
