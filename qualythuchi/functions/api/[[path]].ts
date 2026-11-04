@@ -1,25 +1,13 @@
+
 interface Env {
   API: Fetcher;
 }
 
-export const onRequest: PagesFunction<Env> = async (context) => {
-  const api = context.env.API;
-
-  if (!api) {
-    return Response.json(
-      { error: "API_SERVICE_NOT_CONFIGURED" },
-      { status: 503 }
-    );
-  }
-
-  try {
-    return await api.fetch(context.request);
-  } catch (error) {
-    console.error("API proxy failed", error);
-
-    return Response.json(
-      { error: "API_UPSTREAM_UNAVAILABLE" },
-      { status: 502 }
-    );
-  }
+export const onRequest: PagesFunction<Env> = async ({
+  request,
+  env
+}) => {
+  // Giữ nguyên method, path, query, headers và body.
+  // Service binding chuyển request đến Worker.
+  return env.API.fetch(request);
 };
