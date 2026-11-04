@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useModalDialog } from '@/hooks/use-modal-dialog';
 import type { FormEvent } from 'react';
 import { ArrowDown, ArrowUp, ChevronLeft, Pencil, Plus, Tag, Trash2, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
 import { Button } from '@/components/ui/button';
 import { isDuplicateName } from './finance-data';
@@ -14,6 +13,7 @@ import { financeApi } from '@/infrastructure/api/finance';
 import type { ApiCategory } from '@/infrastructure/api/finance';
 import { cacheRemoteList, listLocalRecords } from '@/infrastructure/sync/sync-storage';
 import './finance.css';
+import { BackLink } from '@/components/BackLink';
 
 const categoryIconColors = ['category-icon-orange', 'category-icon-blue', 'category-icon-violet', 'category-icon-teal', 'category-icon-pink', 'category-icon-cyan', 'category-icon-amber', 'category-icon-gray'];
 
@@ -57,7 +57,7 @@ export function CategoriesPage() {
   }
 
   return <>
-    <div className="category-page-heading"><Link to="/wallets" className="wallet-back" aria-label="Quay lại ví"><ChevronLeft /></Link><div><h1>Quản lý danh mục</h1><p>Tạo và quản lý danh mục thu chi của bạn</p></div></div>
+    <div className="category-page-heading"><BackLink to="/more" className="wallet-back" aria-label="Quay lại"><ChevronLeft /></BackLink><div><h1>Quản lý danh mục</h1><p>Tạo và quản lý danh mục thu chi của bạn</p></div></div>
     <FinanceToast toast={toast} />
     <div className="category-type-tabs" role="tablist" aria-label="Loại danh mục">
       <button type="button" role="tab" aria-selected={isExpense} className={isExpense ? 'category-type-tab category-type-active expense' : 'category-type-tab'} onClick={() => setType('EXPENSE')}><ArrowUp aria-hidden="true" />Danh mục chi</button>

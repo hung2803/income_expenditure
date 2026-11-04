@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Cloud, LoaderCircle, RefreshCw, WifiOff } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
 import { useNetworkStatus } from '../../hooks/use-network-status';
 import { syncOutbox, notifySyncChange } from '../../infrastructure/sync/sync-engine';
 import { getSyncSnapshot } from '../../infrastructure/sync/sync-storage';
 import type { SyncSnapshot } from '../../infrastructure/sync/sync-storage';
 import { usePageLoader } from '@/hooks/use-page-loader';
+import { BackLink } from '@/components/BackLink';
 
 const empty: SyncSnapshot = { pending: 0, syncing: 0, error: 0, lastSyncedAt: null, lastError: null };
 
@@ -48,7 +48,7 @@ export function SyncPage() {
   const failed = snapshot.error > 0;
 
   return <div className="sync-page">
-    <header className="sync-page-heading"><Link to="/more" aria-label="Quay lại"><ArrowLeft /></Link><div><h1>Sao lưu và đồng bộ</h1><p>Giữ dữ liệu trên thiết bị khớp với tài khoản của bạn</p></div></header>
+    <header className="sync-page-heading"><BackLink to="/more" aria-label="Quay lại"><ArrowLeft /></BackLink><div><h1>Sao lưu và đồng bộ</h1><p>Giữ dữ liệu trên thiết bị khớp với tài khoản của bạn</p></div></header>
     <section className={`sync-status-card ${failed ? 'sync-status-error' : syncing ? 'sync-status-working' : 'sync-status-ready'}`}>
       <span className="sync-status-icon">{!online ? <WifiOff /> : syncing ? <LoaderCircle className="sync-spin" /> : failed ? <RefreshCw /> : <Cloud />}</span>
       <div><h2>{!online ? 'Đang offline' : syncing ? 'Đang đồng bộ dữ liệu' : failed ? 'Có dữ liệu chưa đồng bộ' : snapshot.lastSyncedAt ? 'Dữ liệu đã đồng bộ' : 'Đang chờ thay đổi'}</h2>

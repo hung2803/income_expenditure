@@ -2,7 +2,6 @@ import { usePageLoader } from '@/hooks/use-page-loader';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ArrowLeftRight, ArrowUpRight, ChevronLeft } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
 import { createId, formatVnd } from './finance-data';
 import { parseTransactionAmount } from './transactions-data';
@@ -14,6 +13,7 @@ import type { ApiTransfer, ApiWallet } from '@/infrastructure/api/finance';
 import { syncOutbox } from '@/infrastructure/sync/sync-engine';
 import { enqueueLocalMutation, listLocalRecords, putLocalRecord } from '@/infrastructure/sync/sync-storage';
 import './finance.css';
+import { BackLink } from '@/components/BackLink';
 
 export function TransferPage() {
   const { session } = useAuth();
@@ -100,7 +100,7 @@ export function TransferPage() {
 
   return <>
     <div className="transfer-page-heading">
-      <Link to="/dashboard" className="wallet-back" aria-label="Quay lại trang chủ"><ChevronLeft /></Link>
+      <BackLink to="/dashboard" className="wallet-back" aria-label="Quay lại trang chủ"><ChevronLeft /></BackLink>
       <div><h1>Chuyển tiền</h1><p>Chuyển số dư giữa các ví của bạn</p></div>
     </div>
     <section className="transfer-panel">

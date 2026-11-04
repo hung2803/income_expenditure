@@ -1,6 +1,6 @@
 import { usePageLoader } from '@/hooks/use-page-loader';
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Bell, Eye, EyeOff, ShieldCheck, Wallet } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bell, Eye, EyeOff, ShieldCheck, Tags, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
 import { WalletIllustration } from '../auth/components/WalletIllustration';
@@ -74,6 +74,6 @@ export function AccountDashboard() {
     {loadError && <p className="account-data-note" role="alert">Chưa tải được dữ liệu. Hãy kéo xuống để thử lại.</p>}
     <DashboardPlans key={userId} ownerUserId={userId} hidden={hidden} />
     <section className="account-session-card"><ShieldCheck aria-hidden="true" /><div><h2>Không gian tài chính của bạn</h2><p>Đang đăng nhập với tài khoản <strong>{session.user.username}</strong>.</p></div></section>
-    <div className="account-shortcuts"><Link to="/account"><ShieldCheck aria-hidden="true" /><span>Tài khoản &amp; bảo mật</span></Link><Link to="/wallets"><Wallet aria-hidden="true" /><span>Ví của tôi</span></Link></div>
+    <div className="account-shortcuts"><Link to="/account"><ShieldCheck aria-hidden="true" /><span>Tài khoản &amp; bảo mật</span></Link><Link to="/categories"><Tags aria-hidden="true" /><span>Danh mục</span></Link></div>
   </>;
 }

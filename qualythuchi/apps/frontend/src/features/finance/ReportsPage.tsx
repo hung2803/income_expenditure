@@ -1,6 +1,6 @@
 import { usePageLoader } from '@/hooks/use-page-loader';
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowRight, ArrowUp, BarChart3, CalendarDays, ChevronLeft, CircleHelp, LineChart, PieChart, Search } from 'lucide-react';
+import { ArrowDown, ArrowRight, ArrowUp, BarChart3, CalendarDays, CircleHelp, LineChart, PieChart, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
 import { adminApi } from '../../infrastructure/api/admin';
@@ -111,7 +111,7 @@ export function ReportsPage() {
 
   return <div className="reports-page">
     <header className="reports-heading">
-      <Link to="/dashboard" aria-label="Quay lại trang chủ"><ChevronLeft /></Link>
+      
       <div><h1>Báo cáo thống kê</h1><p>Tổng quan thu chi và tình hình tài chính</p></div>
       <Link className="reports-search-shortcut" to={reportsSearchLink(range)} aria-label="Tìm kiếm giao dịch"><Search /><span>Tìm kiếm</span></Link>
     </header>

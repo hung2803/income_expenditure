@@ -2,11 +2,11 @@ import { usePageLoader } from '@/hooks/use-page-loader';
 import { useMemo, useState } from 'react';
 import { useModalDialog } from '@/hooks/use-modal-dialog';
 import { ChevronLeft, Crown, Pencil, Plus, Search, ShieldCheck, Users, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import type { AuthUser } from '@thu-chi/contracts';
 import { adminApi, type AdminUser } from '../../infrastructure/api/admin';
 import { useAuth } from '../auth/auth-context';
 import './admin.css';
+import { BackLink } from '@/components/BackLink';
 
 export function AdminUsersPage() {
   const { session } = useAuth();
@@ -71,7 +71,7 @@ export function AdminUsersPage() {
   }
 
   return <div className="admin-page">
-    <header className="admin-page-heading"><Link to="/more" aria-label="Quay lại"><ChevronLeft /></Link><div><span className="account-role"><Crown />Super Admin</span><h1>Quản lý người dùng</h1><p>Quản lý tài khoản người dùng trong hệ thống</p></div><button className="admin-icon-button" type="button" onClick={openCreate} aria-label="Tạo tài khoản"><Plus /></button></header>
+    <header className="admin-page-heading"><BackLink to="/more" aria-label="Quay lại"><ChevronLeft /></BackLink><div><span className="account-role"><Crown />Super Admin</span><h1>Quản lý người dùng</h1><p>Quản lý tài khoản người dùng trong hệ thống</p></div><button className="admin-icon-button" type="button" onClick={openCreate} aria-label="Tạo tài khoản"><Plus /></button></header>
     <label className="admin-search"><Search aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm theo tên hoặc tên đăng nhập" /></label>
     <div className="admin-filter-row" role="tablist" aria-label="Lọc vai trò">
       {([['ALL', `Tất cả (${users.length})`], ['USER', `Người dùng (${users.filter((user) => user.role === 'USER').length})`], ['SUPER_ADMIN', `Quản trị (${users.filter((user) => user.role === 'SUPER_ADMIN').length})`]] as const).map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={filter === value} className={filter === value ? 'admin-filter-active' : ''} onClick={() => setFilter(value)}>{label}</button>)}

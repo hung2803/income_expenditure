@@ -17,6 +17,7 @@ import { WalletsPage } from '@/features/finance/WalletsPage';
 import { BudgetsPage } from '@/features/finance/BudgetsPage';
 import { CategoriesPage } from '@/features/finance/CategoriesPage';
 import { TransactionsPage } from '@/features/finance/TransactionsPage';
+import { TransactionFormPage } from '@/features/finance/TransactionFormPage';
 import { TransferPage } from '@/features/finance/TransferPage';
 import { SyncPage } from '@/features/account/SyncPage';
 import { AdminUsersPage } from '@/features/admin/AdminUsersPage';
@@ -48,6 +49,8 @@ export const router = createBrowserRouter([
           { path: 'more', element: <MorePage /> },
           { path: 'sync', element: <SyncPage /> },
           { path: 'transactions', element: <TransactionsPage /> },
+          { path: 'transactions/new', element: <TransactionFormPage /> },
+          { path: 'transactions/:transactionId', element: <TransactionFormPage /> },
           { path: 'search', element: <Suspense fallback={<div className="account-empty" role="status">Đang tải…</div>}><AdvancedSearchPage /></Suspense> },
           { path: 'transfers', element: <TransferPage /> },
           { path: 'reports', element: <Suspense fallback={<div className="account-empty" role="status">Đang tải…</div>}><ReportsPage /></Suspense> },

@@ -40,7 +40,7 @@ for (const [name, engine] of [['chromium', chromium], ['webkit', webkit]]) {
     page.on('pageerror', error => errors.push(error.message));
     page.on('request', request => { if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++; });
     const checked = [];
-    for (const [label, path] of [['Thu chi', '/transactions'], ['Lịch', '/calendar'], ['Báo cáo', '/reports'], ['Ví', '/wallets'], ['Khác', '/more'], ['Trang chủ', '/dashboard']]) {
+    for (const [label, path] of [['Thu chi', '/transactions'], ['Lịch', '/calendar'], ['Báo cáo', '/reports'], ['Ngân sách', '/budgets'], ['Khác', '/more'], ['Trang chủ', '/dashboard']]) {
       const link = page.getByRole('navigation', { name: 'Điều hướng chính' }).getByRole('link', { name: label, exact: true });
       const href = new URL(await link.getAttribute('href'), origin);
       expect(href.origin).toBe(scope.origin); expect(href.pathname.startsWith(scope.pathname)).toBe(true);

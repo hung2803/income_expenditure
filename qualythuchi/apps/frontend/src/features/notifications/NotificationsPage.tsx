@@ -1,10 +1,10 @@
 import { usePageLoader } from '@/hooks/use-page-loader';
 import { useEffect, useState } from 'react';
 import { Bell, BellOff, CheckCheck, ChevronLeft, Clock3, Dot, Smartphone } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
 import { createHttpClient } from '../../infrastructure/api/http';
 import './notifications.css';
+import { BackLink } from '@/components/BackLink';
 
 interface InboxItem { id: string; kind: 'DAILY_REMINDER' | 'BUDGET_THRESHOLD'; title: string; body: string; payloadJson: string; createdAt: number; readAt: number | null }
 interface InboxResponse { notifications: InboxItem[]; unreadCount: number; settings: { timezone: string; pushEnabled: boolean } }
@@ -102,7 +102,7 @@ export function NotificationsPage() {
 
   if (!session) return null;
   return <div className="notification-page">
-    <div className="notification-heading"><Link to="/more" aria-label="Quay lại"><ChevronLeft /></Link><div><h1>Trung tâm thông báo</h1><p>{data?.unreadCount ?? 0} thông báo chưa đọc</p></div></div>
+    <div className="notification-heading"><BackLink to="/more" aria-label="Quay lại"><ChevronLeft /></BackLink><div><h1>Trung tâm thông báo</h1><p>{data?.unreadCount ?? 0} thông báo chưa đọc</p></div></div>
     <section className="notification-settings">
       <div className="notification-setting-icon">{deviceSubscribed ? <Bell /> : <BellOff />}</div>
       <div className="notification-setting-copy"><strong>Thông báo trên thiết bị</strong><p>{deviceSubscribed ? 'Nhắc hằng ngày lúc 21:00 theo múi giờ thiết bị.' : 'Bật để nhận lời nhắc hằng ngày.'}</p></div>

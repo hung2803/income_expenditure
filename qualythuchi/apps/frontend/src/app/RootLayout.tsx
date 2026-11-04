@@ -5,9 +5,11 @@ import { PwaNotice } from '@/infrastructure/pwa/PwaNotice';
 import { AuthProvider } from '@/features/auth/AuthProvider';
 import { SyncCoordinator } from '@/infrastructure/sync/SyncCoordinator';
 import { PullToRefresh } from '@/components/PullToRefresh';
+import { useHistoryDepthTracker } from '@/hooks/use-go-back';
 
 export function RootLayout() {
   const online = useNetworkStatus();
+  useHistoryDepthTracker();
   return <AuthProvider>
     <SyncCoordinator />
     <PullToRefresh />

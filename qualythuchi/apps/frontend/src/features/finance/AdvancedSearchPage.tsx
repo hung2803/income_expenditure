@@ -10,6 +10,7 @@ import type { TransactionType } from './transactions-data';
 import { formatVnd, parseVndInteger } from './finance-data';
 import { VndInput } from './VndInput';
 import './advanced-search.css';
+import { BackLink } from '@/components/BackLink';
 
 interface SearchDraft {
   from: string; to: string; type: '' | TransactionType; categoryId: string; walletId: string;
@@ -137,7 +138,7 @@ export function AdvancedSearchPage() {
 
   return <div className="advanced-search-page">
     <header className="advanced-search-heading">
-      <Link to="/transactions" aria-label="Quay lại giao dịch"><ChevronLeft /></Link>
+      <BackLink to="/transactions" aria-label="Quay lại giao dịch"><ChevronLeft /></BackLink>
       <div><h1>Tìm kiếm nâng cao</h1><p>Tìm và lọc giao dịch theo nhiều tiêu chí</p></div>
       <span className="advanced-search-heading-icon"><Search aria-hidden="true" /></span>
     </header>
@@ -168,9 +169,8 @@ export function AdvancedSearchPage() {
           const wallet = walletsById.get(item.walletId)?.name ?? 'Ví';
           const label = item.note.trim() || category;
           const amount = item.type === 'INCOME' ? `+${formatVnd(item.amount)}` : `−${formatVnd(item.amount)}`;
-          const params = new URLSearchParams({ transactionId: item.id });
-          const target = isAdmin ? `/admin/finance?${new URLSearchParams({ ownerUserId: ownerId, tab: 'transactions', transactionId: item.id })}` : `/transactions?${params.toString()}`;
-          return <Link className="advanced-result-row" to={target} key={item.id}>
+          const target = isAdmin ? `/admin/finance?${new URLSearchParams({ ownerUserId: ownerId, tab: 'transactions', transactionId: item.id })}` : `/transactions/${encodeURIComponent(item.id)}`;
+          return <Link className="advanced-result-row" to={target} state={isAdmin ? undefined : { from: '/search' }} key={item.id}>
             <span className={`advanced-result-icon ${item.type === 'INCOME' ? 'advanced-result-income' : 'advanced-result-expense'}`}>{item.type === 'INCOME' ? <ArrowDown /> : <ArrowUp />}</span>
             <span className="advanced-result-copy"><strong>{label}</strong><small>{category} · {wallet}{item.tags.length ? ` · ${item.tags.map((tag) => `#${tag}`).join(' ')}` : ''}</small></span>
             <span className={`advanced-result-amount ${item.type === 'INCOME' ? 'is-income' : 'is-expense'}`}>{amount}</span><ChevronRight aria-hidden="true" />

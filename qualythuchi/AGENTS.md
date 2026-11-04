@@ -100,6 +100,10 @@ Màn hình có dữ liệu đăng ký loader bằng `usePageLoader`; scope gồm
 
 ### 5.1. Ví
 
+**Giao diện người dùng hiện ẩn ví** (quyết định 04/11/2026: người dùng chỉ cần hạn mức chi theo tháng). Lần đầu mở Thu chi hoặc Định kỳ khi có mạng, frontend tự tạo ví mặc định `Ví chính` nếu tài khoản chưa có ví (`apps/frontend/src/features/finance/default-wallet.ts`). Giao dịch/lịch mới tự gán vào ví mặc định (ưu tiên tên `Ví chính`, nếu không có thì ví đầu tiên); sửa giao dịch giữ ví cũ. Form không còn ô chọn ví, danh sách giao dịch/lịch không hiện tên ví. Tab Ví được thay bằng tab Ngân sách; `/wallets`, `/transfers` vẫn giữ route, chỉ bỏ lối vào từ menu. Database, API, đồng bộ và công thức số dư không đổi; Admin tài chính vẫn quản lý ví như cũ. Lần đầu chưa có ví mà offline thì chưa ghi được giao dịch cho đến khi có mạng.
+
+Luồng ví đầy đủ (khi mở trực tiếp `/wallets`):
+
 1. Vào `/wallets`, tạo ví với tên, loại ví, số dư ban đầu và thông tin tài khoản nếu cần.
 2. Máy chủ kiểm tra dữ liệu, tên trùng và quyền sở hữu.
 3. Ví xuất hiện trong danh sách chọn khi nhập thu/chi, chuyển ví và lập lịch định kỳ.
@@ -119,7 +123,7 @@ Hiện backend không cho xóa danh mục mặc định, và chặn xóa danh m�
 
 ### 6.1. Ghi giao dịch
 
-1. Vào `/transactions`, mở biểu mẫu thêm giao dịch.
+1. Vào `/transactions`, bấm **Thêm** để mở màn hình riêng `/transactions/new` (không còn popup; `?type=INCOME` chọn sẵn loại thu). Sửa giao dịch mở `/transactions/:transactionId`; liên kết cũ `/transactions?transactionId=` tự chuyển sang đường dẫn này. Lưu xong hoặc Hủy thì quay lại màn hình trước (mở trực tiếp thì về `/transactions`). Dữ liệu dùng chung qua `useTransactionData`; kéo làm mới không xóa nội dung đang nhập. Popup xác nhận xóa vẫn giữ dạng hộp thoại. Giao diện form: chọn Khoản chi/Khoản thu dạng pill, ô số tiền lớn theo màu loại, lưới icon danh mục (icon/màu suy từ tên danh mục ở `category-icons.ts`, chưa lưu icon trong database), chip Hôm nay/Hôm qua cho ngày, nút Hủy/Lưu cố định ở đáy và ẩn thanh tab trên màn hình này.
 2. Chọn thu hoặc chi, nhập số tiền, ví, danh mục, ngày giờ; bổ sung ghi chú và nhãn nếu cần.
 3. Ứng dụng kiểm tra đầu vào, lưu thay đổi cục bộ và đưa vào hàng đợi đồng bộ.
 4. Giao diện phản ánh thay đổi cục bộ; khi có mạng và phiên hợp lệ, hàng đợi được gửi lên máy chủ.
@@ -174,6 +178,8 @@ Tỷ lệ sử dụng = Chi thực tế / Hạn mức × 100%
 
 Ví dụ: ngân sách ăn uống 2.000.000đ, chi 1.600.000đ thì dùng 80%. Chi lên 2.100.000đ thì dùng 105%, còn lại −100.000đ.
 
+Đặt sẵn cho nhiều tháng: khi tháng đang xem có ngân sách, nút **Áp dụng cho các tháng sau** chép mọi hạn mức của tháng đó sang 3/6/12 tháng tiếp theo. Phạm vi đã có ở tháng đích được giữ nguyên, trừ khi chọn **Ghi đè** thì cập nhật số tiền. Khi tháng đang xem trống và tháng trước có ngân sách, nút **Sao chép từ tháng trước** tạo các phạm vi còn thiếu. Thao tác gọi API trực tiếp (cần mạng), ghi lần lượt từng ngân sách và báo số bản ghi lỗi nếu có; logic lập kế hoạch ở `planBudgetCopy` trong `budgets-data.ts`. Đây không phải ngân sách lặp vô hạn: tháng ngoài khoảng đã áp dụng vẫn cần áp dụng tiếp.
+
 Ngân sách là công cụ theo dõi, không chặn chi vượt mức. Ngân sách tổng và từng danh mục là các phạm vi theo dõi khác nhau; không cộng hai phạm vi đó để tính lại tổng chi. Có sự kiện cảnh báo không đồng nghĩa thiết bị chắc chắn đã nhận push.
 
 ## 9. Dashboard, tìm kiếm và báo cáo
@@ -182,7 +188,7 @@ Ngân sách là công cụ theo dõi, không chặn chi vượt mức. Ngân sá
 
 Sau khi đăng nhập, người dùng xem tổng số dư, thu/chi trong tháng, mức sử dụng ngân sách, hóa đơn và tiết kiệm. Trang chủ không còn các khối Giao dịch gần đây/Chi tiêu nhanh; lịch được chuyển sang **tab Lịch — `/calendar`** để không kéo dài dashboard.
 
-Lịch có màn hình riêng, mặc định tháng hiện tại, nút **Tháng trước/Tháng sau** xem được các tháng khác và chuyển năm. Tuần bắt đầu thứ Hai, mỗi ngày một ô có tổng thu và tổng chi theo ngày tại múi giờ thiết bị; không tính chuyển ví, giao dịch đã xóa hoặc tháng khác đang xem. Ô nhỏ dùng k/tr/tỷ, ngày không có tiền hiển thị dấu gạch mờ; số tiền đầy đủ ở nhãn truy cập/tooltip. Không có chú thích ký hiệu dưới bảng. **Chạm ngày chọn ô đó và hiển thị thu/chi ngay bên dưới lịch**, giữ route `/calendar`: tiêu đề ngày, tổng thu, tổng chi và danh sách ghi chú/loại/giờ/số tiền, mới nhất trước. Tháng hiện tại mặc định chọn hôm nay, tháng khác chọn ngày đầu; ngày trống có thông báo. Đổi tháng/ngày lọc từ dữ liệu đã tải, không phát thêm API; chỉ đánh dấu hôm nay trong tháng thật sự hiện tại. Nút **Ẩn số tiền** che cả số tiền trong ô, nhãn/tooltip, tổng ngày và từng giao dịch. Lịch dùng loader/caching/outbox dùng chung, có loading/lỗi và bản lưu cục bộ, hỗ trợ vuốt làm mới tại chỗ và giữ tháng/ngày đang chọn. Thanh dưới có 6 mục Trang chủ, Thu chi, Lịch, Báo cáo, Ví, Khác; không bỏ đường dẫn cũ.
+Lịch có màn hình riêng, mặc định tháng hiện tại, nút **Tháng trước/Tháng sau** xem được các tháng khác và chuyển năm. Tuần bắt đầu thứ Hai, mỗi ngày một ô có tổng thu và tổng chi theo ngày tại múi giờ thiết bị; không tính chuyển ví, giao dịch đã xóa hoặc tháng khác đang xem. Ô nhỏ dùng k/tr/tỷ, ngày không có tiền hiển thị dấu gạch mờ; số tiền đầy đủ ở nhãn truy cập/tooltip. Không có chú thích ký hiệu dưới bảng. **Chạm ngày chọn ô đó và hiển thị thu/chi ngay bên dưới lịch**, giữ route `/calendar`: tiêu đề ngày, tổng thu, tổng chi và danh sách ghi chú/loại/giờ/số tiền, mới nhất trước. Tháng hiện tại mặc định chọn hôm nay, tháng khác chọn ngày đầu; ngày trống có thông báo. Đổi tháng/ngày lọc từ dữ liệu đã tải, không phát thêm API; chỉ đánh dấu hôm nay trong tháng thật sự hiện tại. Nút **Ẩn số tiền** che cả số tiền trong ô, nhãn/tooltip, tổng ngày và từng giao dịch. Lịch dùng loader/caching/outbox dùng chung, có loading/lỗi và bản lưu cục bộ, hỗ trợ vuốt làm mới tại chỗ và giữ tháng/ngày đang chọn. Thanh dưới có 6 mục Trang chủ, Thu chi, Lịch, Báo cáo, Ngân sách, Khác; không bỏ đường dẫn cũ. Danh mục nằm trong Khác (và lối tắt ở Trang chủ). Biểu tượng chuông thông báo chỉ hiển thị ở Trang chủ. Nút Quay lại ở các màn hình con dùng `BackLink`/`useGoBack` (`hooks/use-go-back.ts`, tracker gắn ở RootLayout): về đúng trang trước trong app, chặn bấm lặp; mở trực tiếp/tải lại thì về đường dẫn dự phòng bằng replace. Các tab gốc (Ngân sách, Báo cáo) không có nút Quay lại.
 
 Dashboard đã bổ sung hai nhóm còn thiếu theo FR-09/SCR-02: **Hóa đơn sắp đến hạn** và **Tiến độ tiết kiệm**. Hóa đơn lấy tối đa ba lịch chi đang hoạt động có hạn gần nhất, ưu tiên khoản quá hạn, không hiển thị lịch thu hoặc tạm dừng; nhãn ngày tính theo múi giờ từng lịch. Tiết kiệm lấy tối đa ba mục tiêu ACTIVE, ưu tiên hạn gần nhất, hiển thị đã dành/số tiền đích và tiến độ tối đa 100%. Các thẻ dẫn đến `/recurring` và `/savings`; chỉ xem không tự xác nhận thanh toán, tạo giao dịch hoặc trừ ví.
 

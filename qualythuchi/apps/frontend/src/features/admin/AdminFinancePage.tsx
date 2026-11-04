@@ -2,7 +2,6 @@ import { usePageLoader } from '@/hooks/use-page-loader';
 import { useEffect, useMemo, useState } from 'react';
 import { useModalDialog } from '@/hooks/use-modal-dialog';
 import { ArrowDown, ArrowUp, ChevronLeft, Pencil, Plus, Trash2, Wallet as WalletIcon } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { useSearchParams } from 'react-router-dom';
 import { adminApi } from '../../infrastructure/api/admin';
 import { financeApi, type ApiBudget, type ApiCategory, type ApiTransaction, type ApiWallet } from '../../infrastructure/api/finance';
@@ -12,6 +11,7 @@ import { VndInput } from '../finance/VndInput';
 import { useAuth } from '../auth/auth-context';
 import '../finance/finance.css';
 import './admin.css';
+import { BackLink } from '@/components/BackLink';
 
 type Tab = 'overview' | 'transactions' | 'wallets' | 'budgets';
 const tabNames: Record<Tab, string> = { overview: 'Tổng quan', transactions: 'Thu chi', wallets: 'Ví tiền', budgets: 'Ngân sách' };
@@ -83,7 +83,7 @@ export function AdminFinancePage() {
   }
 
   return <div className="admin-page">
-    <header className="admin-page-heading"><Link to="/more" aria-label="Quay lại"><ChevronLeft /></Link><div><h1>Tài chính theo User</h1><p>Xem và quản lý dữ liệu đã đồng bộ</p></div></header>
+    <header className="admin-page-heading"><BackLink to="/more" aria-label="Quay lại"><ChevronLeft /></BackLink><div><h1>Tài chính theo User</h1><p>Xem và quản lý dữ liệu đã đồng bộ</p></div></header>
     <label className="admin-select-label"><span>Tài khoản đích</span><select value={ownerId} onChange={(event) => setOwnerId(event.target.value)}><option value="">Chọn User</option>{users.filter((user) => user.role === 'USER').map((user) => <option key={user.id} value={user.id}>{user.displayName} · @{user.username}</option>)}</select></label>
     {selectedUser && <div className="admin-target-card"><span className="admin-user-avatar">{selectedUser.displayName.trim().split(/\s+/).slice(-2).map((part) => part[0]).join('').toLocaleUpperCase()}</span><div><strong>{selectedUser.displayName}</strong><small>@{selectedUser.username} · Chủ sở hữu dữ liệu</small></div><span className="account-role account-role-user">User</span></div>}
     {ownerId && <div className="admin-finance-tabs" role="tablist" aria-label="Dữ liệu tài chính">{(Object.keys(tabNames) as Tab[]).map((key) => <button type="button" role="tab" aria-selected={tab === key} className={tab === key ? 'admin-finance-tab-active' : ''} onClick={() => setTab(key)} key={key}>{tabNames[key]}</button>)}</div>}

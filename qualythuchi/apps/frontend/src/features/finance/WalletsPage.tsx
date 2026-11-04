@@ -16,6 +16,7 @@ import { financeApi } from '@/infrastructure/api/finance';
 import type { ApiWallet } from '@/infrastructure/api/finance';
 import { cacheRemoteList, listLocalRecords } from '@/infrastructure/sync/sync-storage';
 import './finance.css';
+import { BackLink } from '@/components/BackLink';
 
 const walletTypes: Array<{ value: WalletType; label: string; icon: typeof WalletIcon; tint: string }> = [
   { value: 'CASH', label: 'Tiền mặt', icon: Banknote, tint: 'wallet-tile-cash' },
@@ -66,7 +67,7 @@ export function WalletsPage() {
 
   return <>
     <div className="wallet-page-heading">
-      <div className="wallet-heading-copy"><Link to="/dashboard" className="wallet-back" aria-label="Quay lại"><ChevronLeft /></Link><div><h1>Quản lý ví</h1><p>Quản lý các ví và tài khoản của bạn</p></div></div>
+      <div className="wallet-heading-copy"><BackLink to="/dashboard" className="wallet-back" aria-label="Quay lại"><ChevronLeft /></BackLink><div><h1>Quản lý ví</h1><p>Quản lý các ví và tài khoản của bạn</p></div></div>
       <Button onClick={() => setEditing({ id: '', name: '', type: 'CASH', openingBalance: 0, accountLabel: '', accountReference: '' })}><Plus />Thêm ví</Button>
     </div>
     <FinanceToast toast={toast} />

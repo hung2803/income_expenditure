@@ -1,4 +1,4 @@
-import { ChevronRight, Cloud, Crown, FileClock, PiggyBank, Repeat2, ShieldCheck, UserRound, Users, Wallet, WalletCards } from 'lucide-react';
+import { ChevronRight, Cloud, Crown, FileClock, PiggyBank, Repeat2, ShieldCheck, Tags, UserRound, Users, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
 
@@ -14,7 +14,7 @@ export function MorePage() {
       <Link className="account-menu-row" to="/sync"><span className="account-menu-icon"><Cloud aria-hidden="true" /></span><div><strong>Sao lưu và đồng bộ</strong><p>Trạng thái dữ liệu và thay đổi đang chờ gửi</p></div><ChevronRight aria-hidden="true" /></Link>
     </div></section>
     <section className="account-section"><h2>Quản lý tài chính</h2><div className="account-menu">
-      <Link className="account-menu-row" to="/budgets"><span className="account-menu-icon"><WalletCards aria-hidden="true" /></span><div><strong>Ngân sách</strong><p>Tiến độ và số tiền còn lại trong tháng</p></div><ChevronRight aria-hidden="true" /></Link>
+      <Link className="account-menu-row" to="/categories"><span className="account-menu-icon"><Tags aria-hidden="true" /></span><div><strong>Danh mục</strong><p>Phân loại các khoản thu và chi</p></div><ChevronRight aria-hidden="true" /></Link>
       <Link className="account-menu-row" to="/savings"><span className="account-menu-icon"><PiggyBank aria-hidden="true" /></span><div><strong>Mục tiêu tiết kiệm</strong><p>Theo dõi số tiền đã dành cho từng mục tiêu</p></div><ChevronRight aria-hidden="true" /></Link>
       <Link className="account-menu-row" to="/recurring"><span className="account-menu-icon"><Repeat2 aria-hidden="true" /></span><div><strong>Giao dịch định kỳ</strong><p>Nhắc khoản thu chi lặp lại và chờ bạn xác nhận</p></div><ChevronRight aria-hidden="true" /></Link>
     </div></section>

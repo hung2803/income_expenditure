@@ -1,7 +1,7 @@
 import { usePageLoader } from '@/hooks/use-page-loader';
 import { useEffect, useMemo, useState } from 'react';
 import { useModalDialog } from '@/hooks/use-modal-dialog';
-import { ChevronLeft, ChevronRight, CirclePlus, Pencil, ReceiptText, Trash2, Wallet, X } from 'lucide-react';
+import { CalendarRange, ChevronLeft, ChevronRight, CirclePlus, Copy, Pencil, ReceiptText, Trash2, Wallet, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
 import { FinanceToast } from './FinanceToast';
@@ -11,15 +11,9 @@ import { formatVndInput } from './finance-rules';
 import { VndInput } from './VndInput';
 import { financeApi, type ApiBudget, type ApiCategory, type ApiTransaction } from '@/infrastructure/api/finance';
 import { cacheRemoteList, listLocalRecords } from '@/infrastructure/sync/sync-storage';
-import { localMonthKey, summarizeBudgetMonth, type BudgetCategoryUsage } from './budgets-data';
+import { localMonthKey, planBudgetCopy, shiftMonthKey, summarizeBudgetMonth, type BudgetCategoryUsage, type BudgetCopyPlan } from './budgets-data';
 import './finance.css';
 import './budgets.css';
-
-function shiftMonth(period: string, amount: number): string {
-  const [year, month] = period.split('-').map(Number);
-  const value = new Date(year!, month! - 1 + amount, 1);
-  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}`;
-}
 
 function monthLabel(period: string): string {
   const [year, month] = period.split('-').map(Number);
@@ -42,6 +36,8 @@ export function BudgetsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [editing, setEditing] = useState<ApiBudget | null | undefined>(undefined);
+  const [applying, setApplying] = useState(false);
+  const [copying, setCopying] = useState(false);
   const { toast, showToast } = useFinanceToast();
 
   usePageLoader(async (controller, refreshing) => {
@@ -92,7 +88,31 @@ export function BudgetsPage() {
   const summary = useMemo(() => summarizeBudgetMonth(period, budgets, transactions), [period, budgets, transactions]);
   const periodBudgets = budgets.filter((budget) => budget.period === period);
   const totalBudget = periodBudgets.find((budget) => budget.categoryId === null);
+  const previousPeriod = shiftMonthKey(period, -1);
+  const canCopyPrevious = periodBudgets.length === 0 && budgets.some((budget) => budget.period === previousPeriod);
   if (!session) return null;
+
+  /** Ghi lần lượt từng ngân sách; trả số bản ghi lỗi để báo người dùng. */
+  async function runPlan(plan: BudgetCopyPlan): Promise<number> {
+    let failed = 0;
+    for (const input of plan.create) {
+      try { const saved = await financeApi.createBudget(userId, input, session!.csrfToken); setBudgets((current) => [...current, saved]); }
+      catch { failed += 1; }
+    }
+    for (const { id, input } of plan.update) {
+      try { const saved = await financeApi.updateBudget(userId, id, input, session!.csrfToken); setBudgets((current) => current.map((item) => item.id === saved.id ? saved : item)); }
+      catch { failed += 1; }
+    }
+    return failed;
+  }
+
+  async function copyPrevious() {
+    setCopying(true);
+    try {
+      const failed = await runPlan(planBudgetCopy(budgets, previousPeriod, [period], false));
+      showToast(failed ? `Không sao chép được ${failed} ngân sách. Hãy kiểm tra kết nối và thử lại.` : `Đã sao chép ngân sách từ tháng ${previousPeriod}.`, failed ? 'error' : 'success');
+    } finally { setCopying(false); }
+  }
 
   async function removeBudget(budget: ApiBudget) {
     const name = budget.categoryName ?? 'ngân sách tổng';
@@ -112,18 +132,20 @@ export function BudgetsPage() {
 
   return <>
     <header className="budget-page-heading">
-      <Link to="/dashboard" className="budget-back" aria-label="Quay lại trang chủ"><ChevronLeft /></Link>
+      
       <div><h1>Ngân sách</h1><p>Lập kế hoạch chi tiêu theo tháng</p></div>
       <button className="budget-add-button" type="button" onClick={() => setEditing(null)}><CirclePlus />Tạo ngân sách</button>
     </header>
     <FinanceToast toast={toast} />
-    <div className="budget-period-control"><button type="button" aria-label="Tháng trước" onClick={() => setPeriod((value) => shiftMonth(value, -1))}><ChevronLeft /></button><label><span className="sr-only">Chọn tháng</span><input type="month" value={period} onChange={(event) => { if (event.target.value) setPeriod(event.target.value); }} /></label><button type="button" aria-label="Tháng sau" onClick={() => setPeriod((value) => shiftMonth(value, 1))}><ChevronRight /></button></div>
+    <div className="budget-period-control"><button type="button" aria-label="Tháng trước" onClick={() => setPeriod((value) => shiftMonthKey(value, -1))}><ChevronLeft /></button><label><span className="sr-only">Chọn tháng</span><input type="month" value={period} onChange={(event) => { if (event.target.value) setPeriod(event.target.value); }} /></label><button type="button" aria-label="Tháng sau" onClick={() => setPeriod((value) => shiftMonthKey(value, 1))}><ChevronRight /></button></div>
     {loading ? <div className="account-empty budget-empty"><Wallet /><h2>Đang tải ngân sách…</h2></div> : error ? <div className="account-empty budget-empty"><Wallet /><h2>Không tải được ngân sách</h2><p>Kết nối mạng để tải dữ liệu hoặc thử lại sau.</p></div> : <>
       <section className="budget-overview-card" aria-label={`Tổng quan ngân sách ${monthLabel(period)}`}>
         <div className="budget-overview-heading"><span className="budget-icon"><Wallet /></span><div><small>{monthLabel(period)}</small><h2>{totalBudget ? 'Tổng ngân sách tháng' : 'Ngân sách đã lập'}</h2></div><span className="budget-period-range">{monthRangeLabel(period)}</span></div>
         <div className="budget-overview-numbers"><div><small>Tổng ngân sách</small><strong>{formatVnd(summary.budgetTotal)}</strong></div><div><small>Đã chi</small><strong className="budget-spent">{formatVnd(summary.spent)}</strong></div><div><small>{summary.remaining >= 0 ? 'Còn lại' : 'Vượt ngân sách'}</small><strong className={summary.remaining < 0 ? 'budget-over' : 'budget-remaining'}>{formatVnd(summary.remaining)}</strong></div></div>
         <div className="budget-progress-meta"><span>{summary.budgetTotal ? `${summary.percentUsed.toFixed(summary.percentUsed % 1 ? 1 : 0)}% đã sử dụng` : 'Chưa có ngân sách cho tháng này'}</span>{summary.budgetTotal > 0 && <span>{formatVnd(summary.spent)} / {formatVnd(summary.budgetTotal)}</span>}</div>
         <div className={`budget-progress-track ${summary.percentUsed >= 100 ? 'budget-progress-over' : ''}`} role="progressbar" aria-label="Tỷ lệ sử dụng ngân sách tháng" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, Math.max(0, summary.percentUsed))}><i style={{ width: `${Math.min(100, Math.max(0, summary.percentUsed))}%` }} /></div>
+        {periodBudgets.length > 0 && <div className="budget-overview-actions"><button type="button" className="budget-row-action budget-edit-action" onClick={() => setApplying(true)}><CalendarRange />Áp dụng cho các tháng sau</button></div>}
+        {canCopyPrevious && <div className="budget-overview-actions"><button type="button" className="budget-row-action budget-edit-action" disabled={copying} onClick={() => void copyPrevious()}><Copy />{copying ? 'Đang sao chép…' : `Sao chép từ tháng ${previousPeriod}`}</button></div>}
         {totalBudget && <div className="budget-overview-actions"><button type="button" className="budget-row-action budget-edit-action" onClick={() => setEditing(totalBudget)}><Pencil />Sửa ngân sách tổng</button><Link className="budget-related-link" to={transactionHref()}><ReceiptText />Xem các giao dịch tháng này</Link></div>}
       </section>
 
@@ -136,6 +158,15 @@ export function BudgetsPage() {
       const saved = editing ? await financeApi.updateBudget(userId, editing.id, input, session.csrfToken) : await financeApi.createBudget(userId, input, session.csrfToken);
       setBudgets((current) => editing ? current.map((item) => item.id === saved.id ? saved : item) : [...current, saved]);
       showToast('Đã lưu ngân sách.', 'success'); setEditing(undefined);
+    }} />}
+    {applying && <ApplyBudgetDialog period={period} count={periodBudgets.length} onClose={() => setApplying(false)} onApply={async (months, overwrite) => {
+      const targets = Array.from({ length: months }, (_, index) => shiftMonthKey(period, index + 1));
+      const plan = planBudgetCopy(budgets, period, targets, overwrite);
+      const failed = await runPlan(plan);
+      const done = plan.create.length + plan.update.length - failed;
+      if (failed) throw new Error(`Đã áp dụng ${done} ngân sách, ${failed} ngân sách lỗi. Hãy kiểm tra kết nối và thử lại.`);
+      showToast(done ? `Đã áp dụng ${done} ngân sách cho ${months} tháng sau${plan.skipped ? `, giữ nguyên ${plan.skipped} ngân sách đã có` : ''}.` : 'Các tháng sau đã có ngân sách, không có gì thay đổi.', 'success');
+      setApplying(false);
     }} />}
   </>;
 }
@@ -178,6 +209,35 @@ function BudgetDialog({ item, period, categories, onClose, onSave }: { item: Api
       <label className="finance-field"><span>Số tiền (VND)</span><VndInput value={amount} onChange={setAmount} placeholder="0" /></label>
       {error && <p className="budget-form-error" role="alert">{error}</p>}
       <div className="finance-dialog-actions"><button type="button" className="account-secondary-button" onClick={onClose}>Hủy</button><button type="submit" className="account-primary-button" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu ngân sách'}</button></div>
+    </form>
+  </dialog>;
+}
+
+const applyMonthOptions = [3, 6, 12] as const;
+
+function ApplyBudgetDialog({ period, count, onClose, onApply }: { period: string; count: number; onClose: () => void; onApply: (months: number, overwrite: boolean) => Promise<void> }) {
+  const [months, setMonths] = useState<number>(12);
+  const [overwrite, setOverwrite] = useState(false);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const dialog = useModalDialog();
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true); setError('');
+    try { await onApply(months, overwrite); }
+    catch (failure) { setError(failure instanceof Error ? failure.message : 'Không áp dụng được ngân sách.'); }
+    finally { setSaving(false); }
+  }
+
+  return <dialog ref={dialog} className="account-dialog finance-dialog budget-dialog" onCancel={(event) => { if (saving) event.preventDefault(); else onClose(); }} aria-labelledby="budget-apply-title">
+    <button className="account-dialog-close" type="button" aria-label="Đóng" disabled={saving} onClick={onClose}><X /></button>
+    <div className="finance-dialog-heading"><span className="account-empty-icon"><CalendarRange /></span><h2 id="budget-apply-title">Áp dụng cho các tháng sau</h2><p>Dùng {count} hạn mức của {monthLabel(period)} cho các tháng tiếp theo.</p></div>
+    <form className="finance-form" onSubmit={(event) => void submit(event)}>
+      <label className="finance-field"><span>Số tháng áp dụng</span><select value={months} onChange={(event) => setMonths(Number(event.target.value))}>{applyMonthOptions.map((value) => <option key={value} value={value}>{value} tháng ({shiftMonthKey(period, 1)} → {shiftMonthKey(period, value)})</option>)}</select></label>
+      <label className="budget-apply-overwrite"><input type="checkbox" checked={overwrite} onChange={(event) => setOverwrite(event.target.checked)} /><span>Ghi đè tháng đã có ngân sách cùng phạm vi</span></label>
+      {error && <p className="budget-form-error" role="alert">{error}</p>}
+      <div className="finance-dialog-actions"><button type="button" className="account-secondary-button" disabled={saving} onClick={onClose}>Hủy</button><button type="submit" className="account-primary-button" disabled={saving}>{saving ? 'Đang áp dụng…' : 'Áp dụng'}</button></div>
     </form>
   </dialog>;
 }

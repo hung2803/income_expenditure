@@ -10,7 +10,7 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "thu-chi-db",
+      "database_name": "thu-chi-prod",
       "database_id": "0e1e1be2-387e-4e3b-b0e5-16b7175d4461",
       "migrations_dir": "migrations"
     }

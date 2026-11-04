@@ -70,3 +70,5 @@
   .budget-category-row { gap: 6px; padding-inline: 7px; }
   .budget-period-range { display: none; }
 }
+.budget-apply-overwrite { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.4; }
+.budget-apply-overwrite input { margin-top: 2px; width: 16px; height: 16px; flex: none; }

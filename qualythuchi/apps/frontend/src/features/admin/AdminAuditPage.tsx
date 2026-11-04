@@ -1,9 +1,9 @@
 import { usePageLoader } from '@/hooks/use-page-loader';
 import { useMemo, useState } from 'react';
 import { ChevronLeft, FileClock, Pencil, Plus, Trash2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { adminApi, type AdminAuditEvent } from '../../infrastructure/api/admin';
 import './admin.css';
+import { BackLink } from '@/components/BackLink';
 
 const actionLabels: Record<string, string> = { CREATE: 'Tạo dữ liệu', UPSERT: 'Cập nhật dữ liệu', UPDATE: 'Cập nhật dữ liệu', DELETE: 'Xóa dữ liệu' };
 const entityLabels: Record<string, string> = { transaction: 'Giao dịch', wallet: 'Ví', category: 'Danh mục', transfer: 'Chuyển khoản', user: 'Tài khoản' };
@@ -18,7 +18,7 @@ export function AdminAuditPage() {
   }, 'admin-audit');
   const filtered = useMemo(() => events.filter((event) => `${event.actorUsername} ${event.ownerUsername} ${event.action} ${event.entity} ${event.recordId}`.toLocaleLowerCase('vi').includes(query.trim().toLocaleLowerCase('vi'))), [events, query]);
   return <div className="admin-page">
-    <header className="admin-page-heading"><Link to="/more" aria-label="Quay lại"><ChevronLeft /></Link><div><h1>Nhật ký quản trị</h1><p>Theo dõi thay đổi do Super Admin thực hiện</p></div></header>
+    <header className="admin-page-heading"><BackLink to="/more" aria-label="Quay lại"><ChevronLeft /></BackLink><div><h1>Nhật ký quản trị</h1><p>Theo dõi thay đổi do Super Admin thực hiện</p></div></header>
     <label className="admin-search"><span aria-hidden="true">⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm theo người thực hiện, User hoặc hành động" /></label>
     {error && <p className="admin-alert" role="alert">{error}</p>}
     {loading ? <div className="admin-empty">Đang tải nhật ký…</div> : filtered.length === 0 ? <section className="admin-empty"><FileClock /><h2>Chưa có hoạt động quản trị</h2><p>Các thay đổi tài chính được ghi nhận sẽ hiển thị tại đây.</p></section> : <section className="admin-audit-list">{filtered.map((event) => {
