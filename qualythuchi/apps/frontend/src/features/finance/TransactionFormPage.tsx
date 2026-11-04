@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowDown, ArrowUp, CalendarClock, Check, ChevronLeft, Hash, Settings2, StickyNote } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarClock, Check, ChevronLeft, Settings2, StickyNote } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useGoBack } from '@/hooks/use-go-back';
 import { useAuth } from '../auth/auth-context';
@@ -7,7 +7,7 @@ import { createId } from './finance-data';
 import type { Category, Wallet } from './finance-data';
 import { FinanceToast } from './FinanceToast';
 import { useFinanceToast } from './use-finance-toast';
-import { parseTransactionAmount, parseTransactionTags } from './transactions-data';
+import { parseTransactionAmount } from './transactions-data';
 import type { Transaction, TransactionType } from './transactions-data';
 import { formatVndInput } from './finance-rules';
 import { VndInput } from './VndInput';
@@ -86,7 +86,6 @@ function TransactionForm({ transaction, initialType, categories, wallets, loaded
   const walletId = transaction?.walletId ?? pickDefaultWallet(wallets)?.id ?? '';
   const [occurredAt, setOccurredAt] = useState(transaction?.occurredAt ? localDateTime(new Date(transaction.occurredAt)) : localDateTime());
   const [note, setNote] = useState(transaction?.note ?? '');
-  const [tags, setTags] = useState(transaction?.tags.join(', ') ?? '');
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const doneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -110,7 +109,7 @@ function TransactionForm({ transaction, initialType, categories, wallets, loaded
     if (!occurredAt || Number.isNaN(date.getTime())) { showToast('Ngày giờ giao dịch không hợp lệ.'); return; }
     if (note.length > 200) { showToast('Ghi chú tối đa 200 ký tự.'); return; }
     setSaving(true);
-    const saveError = await onSave({ type, amount: parsedAmount, categoryId, walletId, occurredAt: date.toISOString(), note: note.trim(), tags: parseTransactionTags(tags) });
+    const saveError = await onSave({ type, amount: parsedAmount, categoryId, walletId, occurredAt: date.toISOString(), note: note.trim(), tags: transaction?.tags ?? [] });
     setSaving(false);
     if (saveError) { showToast(saveError); return; }
     setSuccess(true);
@@ -164,24 +163,19 @@ function TransactionForm({ transaction, initialType, categories, wallets, loaded
 
       <section className="txf-card txf-details" aria-label="Chi tiết giao dịch">
         <div className="txf-row">
-          <span className="txf-row-icon"><CalendarClock aria-hidden="true" /></span>
-          <div className="txf-row-body">
-            <label htmlFor="txf-date">Ngày và giờ</label>
-            <div className="txf-day-chips">
+          <div className="txf-row-label">
+            <label htmlFor="txf-date"><CalendarClock aria-hidden="true" />Ngày và giờ</label>
+            <span className="txf-day-chips">
               <button type="button" aria-pressed={dayOffset === 0} onClick={() => setDay(0)}>Hôm nay</button>
               <button type="button" aria-pressed={dayOffset === -1} onClick={() => setDay(-1)}>Hôm qua</button>
-              <input id="txf-date" type="datetime-local" value={occurredAt} onChange={(event) => setOccurredAt(event.target.value)} />
-            </div>
+            </span>
           </div>
+          <input id="txf-date" type="datetime-local" value={occurredAt} onChange={(event) => setOccurredAt(event.target.value)} />
         </div>
-        <label className="txf-row">
-          <span className="txf-row-icon"><StickyNote aria-hidden="true" /></span>
-          <span className="txf-row-body"><span className="txf-row-label">Ghi chú <small>{note.length}/200</small></span><textarea rows={2} maxLength={200} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Nhập nội dung giao dịch" /></span>
-        </label>
-        <label className="txf-row">
-          <span className="txf-row-icon"><Hash aria-hidden="true" /></span>
-          <span className="txf-row-body"><span className="txf-row-label">Nhãn <small>phân cách bằng dấu phẩy</small></span><input maxLength={160} value={tags} onChange={(event) => setTags(event.target.value)} placeholder="Ví dụ: ăn trưa, công việc" /></span>
-        </label>
+        <div className="txf-row txf-row-note">
+          <div className="txf-row-label"><label htmlFor="txf-note"><StickyNote aria-hidden="true" />Ghi chú</label><small>{note.length}/200</small></div>
+          <input id="txf-note" maxLength={200} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ghi chú (tùy chọn)" />
+        </div>
       </section>
 
       <div className="txf-actions">

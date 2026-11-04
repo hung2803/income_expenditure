@@ -21,7 +21,7 @@ export function AccountShell() {
   const isCalendar = location.pathname === '/calendar';
   // Màn hình thêm/sửa giao dịch dùng toàn màn hình; nút Lưu cố định ở đáy thay cho thanh tab.
   const isTransactionForm = /^\/transactions\/[^/]+$/.test(location.pathname);
-  return <div className="account-page" key={user.id}>
+  return <div className={`account-page${isTransactionForm ? ' account-page-locked' : ''}`} key={user.id}>
     <div className="account-surface">
       <main className={`account-main${isDashboard ? ' account-main-dashboard' : isCalendar ? ' account-main-calendar' : ' account-main-page'}`}><Outlet /></main>
       {!isTransactionForm && <nav className="account-tabs" aria-label="Điều hướng chính">
