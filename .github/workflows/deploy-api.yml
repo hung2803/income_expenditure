@@ -1,0 +1,73 @@
+# Tự động deploy Worker production (qualythuchi/apps/backend, env.prod) khi push lên main.
+# GitHub chỉ đọc workflow ở .github/ tại GỐC repo (income_expenditure/), không đọc qualythuchi/.github/.
+# Frontend do Cloudflare Pages (Git integration) build riêng; Worker vẫn kèm assets frontend theo wrangler.jsonc.
+# Cần GitHub secrets: CLOUDFLARE_API_TOKEN (quyền Workers Scripts:Edit, D1:Read) và CLOUDFLARE_ACCOUNT_ID.
+# Workflow không áp migration D1: chạy migration riêng trước khi deploy code cần schema mới.
+name: Deploy API Worker
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "qualythuchi/apps/backend/src/**"
+      - "qualythuchi/apps/backend/package.json"
+      - "qualythuchi/apps/backend/tsconfig.json"
+      - "qualythuchi/apps/backend/wrangler.jsonc"
+      - "qualythuchi/packages/contracts/**"
+      - "qualythuchi/package.json"
+      - "qualythuchi/package-lock.json"
+      - ".github/workflows/deploy-api.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: thu-chi-api-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: qualythuchi
+    env:
+      VITE_API_BASE_URL: ""
+      WRANGLER_SEND_METRICS: "false"
+      CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: qualythuchi/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Type-check backend
+        run: npm run typecheck -w @thu-chi/backend
+
+      - name: Validate production configuration
+        run: node apps/backend/scripts/cloud.mjs check prod
+
+      - name: Build frontend assets for the Worker
+        run: npm run build -w @thu-chi/frontend
+
+      - name: Validate Worker bundle
+        working-directory: qualythuchi/apps/backend
+        run: npx wrangler deploy --dry-run --env prod
+
+      - name: Deploy Worker (env.prod)
+        working-directory: qualythuchi/apps/backend
+        run: npx wrangler deploy --env prod
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
